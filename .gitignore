@@ -1,0 +1,5 @@
+*.cpp
+*.cpython*
+*.png
+build/
+__pycache__/
