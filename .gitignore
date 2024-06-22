@@ -5,3 +5,5 @@ build/
 __pycache__/
 example_CRISP/fig_results.pdf
 .vscode/
+.env
+example_CRISP/temp
