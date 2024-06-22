@@ -8,12 +8,15 @@ from astropy.time import Time, TimeDelta
 from astropy.coordinates import get_sun
 from astropy.constants import R_sun
 import astropy.units as u
+from scipy.ndimage import rotate
 
 
-def loadFits(name, tt=0, crop=False, xrange=None, yrange=None):
+def loadFits(name, tt=0, crop=False, xrange=None, yrange=None, nan_to_num=True):
     datafits = fits.open(name, 'readonly')[0].data[tt, ...]
-    # Fill nans with 0s:
-    datafits = np.nan_to_num(datafits)
+    if nan_to_num:
+        # Fill nans with 0s:
+        min_val = np.min(datafits)
+        datafits = np.nan_to_num(datafits, nan=0.99*min_val)
     # Normalize the data to average:
     qs_nom = np.nanmean(datafits[0, 0, :, :])
     datafits = rearrange(datafits, 'ns nw ny nx -> ny nx ns nw')/qs_nom
@@ -34,19 +37,66 @@ def get_nan_mask(name, tt=0, invert=False, crop=False, xrange=None, yrange=None)
     return mask
 
 
-def plot_image(name, tt=0, ww=0, ss=0, save_fig=False, crop=False, xrange=None, yrange=None):
-    data = loadFits(name, tt)  # ny, nx, ns, nw
+def make_north_up(data, rot_fov):
+    data = rotate(data, -rot_fov)
+    data = np.fliplr(data)
+    return data
+
+
+def plot_image(name, tt=0, ww=0, ss=0, save_fig=False, crop=False, xtick_range=None, ytick_range=None,
+               figsize=(8, 8), fontsize=12, rot_fov=0, north_up=False, xrange=None, yrange=None):
+    if ss == 0:
+        label = 'I'
+    elif ss == 1:
+        label = 'Q'
+    elif ss == 2:
+        label = 'U'
+    elif ss == 3:
+        label = 'V'
+    else:
+        label = ''
+
+    data = loadFits(name, tt, nan_to_num=True)  # ny, nx, ns, nw
     # plot data using imshow for the first wavelength and Stokes parameter
-    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+
     if crop:
-        im1 = ax.imshow(data[yrange[0]:yrange[1], xrange[0]:xrange[1], ss, ww].T, cmap='Greys_r',
+        final_data = data[yrange[0]:yrange[1], xrange[0]:xrange[1], ss, ww]
+        if north_up:
+            final_data = make_north_up(final_data, rot_fov)
+        im1 = ax.imshow(final_data, cmap='Greys_r',
                         interpolation='nearest', aspect='equal', origin='lower')
     else:
-        im1 = ax.imshow(data[:, :, ss, ww].T, cmap='Greys_r', interpolation='nearest', aspect='equal', origin='lower')
-    cbar = fig.colorbar(im1, ax=ax, orientation='horizontal', shrink=0.8, pad=0.05)
-    cbar.set_label('I [normalized]', fontsize=18)
-    cbar.ax.tick_params(labelsize=16)
-    ax.tick_params(axis='both', which='major', labelsize=16)
+        final_data = data[:, :, ss, ww]
+        if north_up:
+            final_data = make_north_up(final_data, rot_fov)
+        im1 = ax.imshow(final_data, cmap='Greys_r', interpolation='nearest', aspect='equal', origin='lower')
+    # check for nan values in the data and set it to 0.99 min value
+    min_val = np.min(final_data)
+    final_data = np.nan_to_num(final_data, nan=0.99*min_val)
+
+    # get the shape of final_data
+    ny, nx = final_data.shape
+    cbar = fig.colorbar(im1, ax=ax, orientation='horizontal', shrink=0.8, pad=0.08)
+    cbar.set_label(f'{label} ({nx}, {ny})', fontsize=1.1 * fontsize)
+    cbar.ax.tick_params(labelsize=fontsize)
+    ax.tick_params(axis='both', which='major', labelsize=fontsize)
+
+    if xtick_range:
+        x_ticks = np.linspace(0, nx-1, num=5)
+        x_labels = np.linspace(xtick_range[0], xtick_range[1], num=5)
+        # ensure x_labels are displayed with 0 decimal place
+        x_labels = np.round(x_labels, 0)
+        ax.set_xticks(x_ticks)
+        ax.set_xticklabels([f'{label:.1f}' for label in x_labels])
+
+    if ytick_range:
+        y_ticks = np.linspace(0, ny-1, num=5)
+        y_labels = np.linspace(ytick_range[0], ytick_range[1], num=5)
+        # ensure y_labels are displayed with 0 decimal place
+        y_labels = np.round(y_labels, 0)
+        ax.set_yticks(y_ticks)
+        ax.set_yticklabels([f'{label:.1f}' for label in y_labels])
     # ax.set_xticklabels([])
     # ax.set_yticklabels([])
     fig.tight_layout()
@@ -122,7 +172,7 @@ def findgrid(w, dw, extra=5):
     return iw, idx
 
 
-def plot_output(mos, mask, scale=0.059, save_fig=False):
+def plot_output(mos, mask, scale=0.059, save_fig=False, figsize=(30, 30)):
     """
     Plots various components of the `mos` array, applying a mask and scaling.
 
@@ -148,7 +198,7 @@ def plot_output(mos, mask, scale=0.059, save_fig=False):
             mos2[:, :, i][mask] = 1.01 * vmax
 
     # Initialize the figure and axes for subplots
-    fig, ax = plt.subplots(nrows=3, ncols=3, figsize=(30, 30))
+    fig, ax = plt.subplots(nrows=3, ncols=3, figsize=figsize)
     ax1 = ax.flatten()
 
     # Define colormaps and labels for the subplots
@@ -161,13 +211,13 @@ def plot_output(mos, mask, scale=0.059, save_fig=False):
     # Plot each component of `mos2`
     for ii in range(9):
         if ii in [1, 2]:
-            a = ax1[ii].imshow(im.histo_opt(mos2[:, :, ii].T), cmap=cmaps[ii], vmin=0, vmax=np.pi,
+            a = ax1[ii].imshow(im.histo_opt(mos2[:, :, ii]), cmap=cmaps[ii], vmin=0, vmax=np.pi,
                                interpolation='nearest', extent=extent, aspect='equal', origin='lower')
         elif ii == 3:
-            a = ax1[ii].imshow(im.histo_opt(mos2[:, :, ii].T), cmap=cmaps[ii], vmin=-4, vmax=4,
+            a = ax1[ii].imshow(im.histo_opt(mos2[:, :, ii]), cmap=cmaps[ii], vmin=-4, vmax=4,
                                interpolation='nearest', extent=extent, aspect='equal', origin='lower')
         else:
-            a = ax1[ii].imshow(im.histo_opt(mos2[:, :, ii].T), cmap=cmaps[ii], interpolation='nearest',
+            a = ax1[ii].imshow(im.histo_opt(mos2[:, :, ii]), cmap=cmaps[ii], interpolation='nearest',
                                extent=extent, aspect='equal', origin='lower')
         cbar = fig.colorbar(a, ax=ax1[ii], orientation='horizontal', shrink=0.8, pad=0.05)
 
@@ -192,14 +242,21 @@ def plot_output(mos, mask, scale=0.059, save_fig=False):
         fig.savefig('fig_results.pdf', dpi=250, format='pdf')
     plt.show()
 
+
+def plot_mag(mos, mask, scale=0.059, save_fig=False, vmin=None, vmax=None, figsize=(20, 10)):
+    mos2 = copy.deepcopy(mos)
     # Create a new figure for Blos and Bhor maps
-    fig2, ax2 = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+    fig2, ax2 = plt.subplots(nrows=1, ncols=2, figsize=figsize)
 
     # Blos map
     Blos = mos2[:, :, 0] * np.cos(mos2[:, :, 1])
     Blos[mask] = 1.01 * np.percentile(Blos[~mask], 99)
-    im1 = ax2[0].imshow(np.rot90(Blos.T), cmap='Greys_r', interpolation='nearest',
-                        aspect='equal', vmin=-1500, vmax=1500, origin='lower')
+    if vmin is None:
+        vmin = np.percentile(Blos, 1)
+    if vmax is None:
+        vmax = np.percentile(Blos, 99)
+    im1 = ax2[0].imshow(Blos, cmap='Greys_r', interpolation='nearest',
+                        aspect='equal', vmin=vmin, vmax=vmax, origin='lower')
     ax2[0].tick_params(axis='both', which='major', labelsize=14)
     cbar1 = fig2.colorbar(im1, ax=ax2[0], orientation='horizontal', shrink=0.8, pad=0.05)
     cbar1.set_label('Blos [G]', fontsize=18)
@@ -208,8 +265,10 @@ def plot_output(mos, mask, scale=0.059, save_fig=False):
     # Bhor map
     Bhor = mos2[:, :, 0] * np.sin(mos2[:, :, 1])
     Bhor[mask] = 1.01 * np.percentile(Bhor[~mask], 99)
-    im2 = ax2[1].imshow(np.rot90(Bhor.T), cmap='Greys_r', interpolation='nearest',
-                        aspect='equal', vmin=0, vmax=1500, origin='lower')
+    if vmax is None:
+        vmax = np.percentile(Bhor, 99)
+    im2 = ax2[1].imshow(Bhor, cmap='Greys_r', interpolation='nearest',
+                        aspect='equal', origin='lower')
     ax2[1].tick_params(axis='both', which='major', labelsize=14)
     cbar2 = fig2.colorbar(im2, ax=ax2[1], orientation='horizontal', shrink=0.8, pad=0.05)
     cbar2.set_label('Bhor [G]', fontsize=18)
@@ -223,7 +282,7 @@ def plot_output(mos, mask, scale=0.059, save_fig=False):
     plt.show()
 
 
-def get_fits_info(filename, verbose=True):
+def get_fits_info(filename, verbose=False, pprint=True):
     """
     Process a FITS file to extract and compute relevant solar data.
 
@@ -266,6 +325,16 @@ def get_fits_info(filename, verbose=True):
     xcent0 = np.mean(hpln)
     ycent0 = np.mean(hplt)
 
+    # Min max range for the Full FOV
+    ln_min = np.min(hpln)
+    ln_max = np.max(hpln)
+    lt_min = np.min(hplt)
+    lt_max = np.max(hplt)
+
+    # Lon Lat as a function of time
+    hplnt = np.unique(np.unique(hpln, axis=2), axis=1).reshape(-1, 2)
+    hpltt = np.unique(np.unique(np.unique(hplt, axis=2), axis=1).reshape(-1, 2), axis=1).reshape(-1, 2)
+
     # Calculate R_Sun in arcseconds
     date = start_time_obs.split('T')[0]
     distance_sun_earth = get_earth_sun_distance(date)  # AU
@@ -294,15 +363,15 @@ def get_fits_info(filename, verbose=True):
     # start_time_calculated = time2_iso[0, 0]
     # end_time_calculated = time2_iso[-1, -1]
     # center_time_calculated = time2_iso[nt // 2, ns // 2]
-    center_wavelength = wave2[nw // 2, 0]
-    all_wavelengths = wave2[:, 0]
+    center_wavelength = wave2[0, nw // 2]
+    all_wavelengths = wave2[0]
 
     # Convert the times to the desired format without digits after seconds
     start_time_obs_str = start_time_obs.split('.')[0]
     avg_time_obs_str = avg_time_obs.split('.')[0]
     end_time_obs_str = end_time_obs.split('.')[0]
 
-    if verbose:
+    if pprint:
         # Print dimensions and center coordinates
         print('Dimensions:')
         print(f'  nx = {nx}')
@@ -315,17 +384,29 @@ def get_fits_info(filename, verbose=True):
         print(f'  x0 = {xcent0:.2f} (arcsec)')
         print(f'  y0 = {ycent0:.2f} (arcsec)')
 
+        # Print the min and max range for the FOV
+        print('\nField of View Range:')
+        print(f'  ln_min = {ln_min:.2f} (arcsec)')
+        print(f'  ln_max = {ln_max:.2f} (arcsec)')
+        print(f'  lt_min = {lt_min:.2f} (arcsec)')
+        print(f'  lt_max = {lt_max:.2f} (arcsec)')
+        if verbose:
+            print(f'  All hpln: {hplnt}')
+            print(f'  All hplt: {hpltt}')
+
         # Print the start, end, and average times
         print('\nTime Information:')
         print(f'  Start Time     : {start_time_obs_str}')
         print(f'  Average Time   : {avg_time_obs_str}')
         print(f'  End Time       : {end_time_obs_str}')
-        print(f'  All Start Times: {all_start_times}')
+        if verbose:
+            print(f'  All Start Times: {all_start_times}')
 
         # Print the center wavelength and all wavelengths
         print('\nWavelength Information:')
         print(f'  Center Wavelength (Angstroms): {center_wavelength:.2f}')
-        print(f'  All Wavelengths   (Angstroms): {np.round(all_wavelengths, 2)}')
+        if verbose:
+            print(f'  All Wavelengths   (Angstroms): {np.round(all_wavelengths, 4)}')
 
         # Print additional calculated values
         print('\nCalculated Values:')
@@ -334,9 +415,29 @@ def get_fits_info(filename, verbose=True):
         print(f'  mu             = {mu:.2f}')
 
     # Return all variables as a tuple
-    return (
-        nx, ny, nw, ns, nt, xcent0, ycent0,
-        start_time_obs, end_time_obs, avg_time_obs, all_start_times,
-        center_wavelength, all_wavelengths,
-        R_Sun_arcsec, rho, mu
-    )
+    out_dict = {
+        "nx": nx,
+        "ny": ny,
+        "nw": nw,
+        "ns": ns,
+        "nt": nt,
+        "xcent0": xcent0,
+        "ycent0": ycent0,
+        "ln_min": ln_min,
+        "ln_max": ln_max,
+        "lt_min": lt_min,
+        "lt_max": lt_max,
+        "hplnt": hplnt,
+        "hpltt": hpltt,
+        "start_time_obs": start_time_obs,
+        "end_time_obs": end_time_obs,
+        "avg_time_obs": avg_time_obs,
+        "all_start_times": all_start_times,
+        "center_wavelength": center_wavelength,
+        "all_wavelengths": all_wavelengths,
+        "R_Sun_arcsec": R_Sun_arcsec,
+        "rho": rho,
+        "mu": mu
+    }
+
+    return out_dict
