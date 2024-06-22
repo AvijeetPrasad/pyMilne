@@ -7,6 +7,10 @@ import astropy.wcs
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.coordinates import SkyCoord, SkyOffsetFrame
+from enhance_data import run_enhance
+# WARNING: FITSFixedWarning: 'datfix' made the change 'Set MJD-OBS to 59068.348353 from DATE-OBS'. [astropy.wcs.wcs]
+import warnings
+warnings.filterwarnings('ignore', category=astropy.wcs.FITSFixedWarning)
 
 
 def fetch_and_prepare_data(series, email, time_start, path='temp/'):
@@ -21,7 +25,7 @@ def fetch_and_prepare_data(series, email, time_start, path='temp/'):
     if not os.path.exists(file_path):
         files = Fido.fetch(res, path=path, overwrite=False)
         print(f'File downloaded: {files}')
-        file_path = files
+        file_path = files[0]
     else:
         print(f'File already exists: {file_path}')
     return file_path
@@ -30,18 +34,27 @@ def fetch_and_prepare_data(series, email, time_start, path='temp/'):
 def read_fits(file):
     print(f'Reading file: {file}')
     with astropy.io.fits.open(file, mode='readonly') as hdul:
-        data = hdul[1].data
-        header = hdul[1].header
+        try:
+            data = hdul[1].data
+            header = hdul[1].header
+        except IndexError:
+            data = hdul[0].data
+            header = hdul[0].header
     wcs = astropy.wcs.WCS(header=header)
     return sunpy.map.Map(data, wcs).rotate()
 
 
 def plot_submaps(map1, map2, bottom_left, top_right, center_coord=None, draw_circle=False, radius=87,
-                 draw_rectangle=False, height=56, width=56, rot_fov=0):
+                 draw_rectangle=False, height=56, width=56, rot_fov=0, figsize=(16, 8)):
     submap1 = map1.submap(bottom_left, top_right=top_right)
     submap2 = map2.submap(bottom_left, top_right=top_right)
 
-    fig, axes = plt.subplots(1, 2, figsize=(16, 8), subplot_kw={'projection': submap1})
+    fig, axes = plt.subplots(1, 2, figsize=figsize, subplot_kw={'projection': submap1})
+    # set axes[1] subplot_kw projection based on submap2
+    # Set the projection for the second subplot
+    axes[1].remove()  # Remove the existing axis
+    ax2 = fig.add_subplot(1, 2, 2, projection=submap2)
+    axes[1] = ax2  # Reassign the axis to the axes array
     if draw_circle:
         radius = radius * u.arcsec
         # Drawing rectangles rotated 1 degree apart to form a circle
@@ -99,20 +112,48 @@ def plot_submaps(map1, map2, bottom_left, top_right, center_coord=None, draw_cir
 
 
 def plot_hmi_ic_mag(tstart, ic_series, mag_series, email, x1, x2, y1, y2, draw_circle=False, radius=87,
-                    draw_rectangle=False, height=56, width=56, rot_fov=0, save_dir='temp/'):
+                    draw_rectangle=False, height=56, width=56, rot_fov=0, save_dir='temp/', enhance_ic=False,
+                    enhance_m=False, figsize=(16, 8), overwrite=False, buffer=0):
 
     ic_file = fetch_and_prepare_data(ic_series, email, tstart, path=save_dir)
     blos_file = fetch_and_prepare_data(mag_series, email, tstart, path=save_dir)
 
+    if enhance_ic or enhance_m:
+        python_path = "/mn/stornext/d9/data/avijeetp/envs/enhance/bin/python"
+        script_dir = "/mn/stornext/u3/avijeetp/codes/enhance"
+        # get the full folder path for ic_file
+        input_dir = os.path.dirname(ic_file)
+        if enhance_ic:
+            # get full path for ic_file
+            ic_file = os.path.abspath(ic_file)
+            # get the filename of ic_file
+            ic_file_base = os.path.basename(ic_file)
+            ic_output_file = os.path.join(input_dir, "enhanced_" + ic_file_base)
+            ic_output_file = os.path.join(input_dir, "enhanced_" + ic_file_base)
+            ic_file = run_enhance(python_path, script_dir, ic_file, "intensity", ic_output_file, overwrite=overwrite)
+        if enhance_m:
+            # get full path for blos_file
+            blos_file = os.path.abspath(blos_file)
+            blos_file_base = os.path.basename(blos_file)
+            blos_output_file = os.path.join(input_dir, "enhanced_" + blos_file_base)
+            blos_file = run_enhance(python_path, script_dir, blos_file, "intensity",
+                                    blos_output_file, overwrite=overwrite)
+
     ic_map = read_fits(ic_file)
     blos_map = read_fits(blos_file)
+
+    # Add buffer to the coordinates
+    x1 -= buffer
+    x2 += buffer
+    y1 -= buffer
+    y2 += buffer
 
     center_coord = SkyCoord((x1 + x2) / 2 * u.arcsec, (y1 + y2) / 2 * u.arcsec, frame=ic_map.coordinate_frame)
     top_right = SkyCoord(x2 * u.arcsec, y2 * u.arcsec, frame=ic_map.coordinate_frame)
     bottom_left = SkyCoord(x1 * u.arcsec, y1 * u.arcsec, frame=ic_map.coordinate_frame)
 
     plot_submaps(ic_map, blos_map, bottom_left, top_right, center_coord,
-                 draw_circle, radius, draw_rectangle, height, width, rot_fov)
+                 draw_circle, radius, draw_rectangle, height, width, rot_fov, figsize=figsize)
 
 
 def main():
