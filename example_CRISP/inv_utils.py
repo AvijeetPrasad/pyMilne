@@ -13,16 +13,30 @@ from helita.io import lp
 
 
 def loadFits(name, tt=0, crop=False, xrange=None, yrange=None, nan_to_num=True):
+    # Load the FITS data
     datafits = fits.open(name, 'readonly')[0].data[tt, ...]
+
     if nan_to_num:
-        # Fill nans with 0s:
-        min_val = np.min(datafits)
-        datafits = np.nan_to_num(datafits, nan=0.99*min_val)
-    # Normalize the data to average:
+        # Replace NaNs with the minimum value of the non-NaN elements
+        min_val = np.nanmin(datafits)
+        datafits = np.nan_to_num(datafits, nan=0.999 * min_val)
+
+    # Normalize the data to average
     qs_nom = np.nanmean(datafits[0, 0, :, :])
-    datafits = rearrange(datafits, 'ns nw ny nx -> ny nx ns nw')/qs_nom
+    if qs_nom == 0:
+        raise ValueError("Normalization value (qs_nom) is zero, leading to potential division by zero.")
+    datafits = rearrange(datafits, 'ns nw ny nx -> ny nx ns nw') / qs_nom
+
     if crop:
-        datafits = datafits[yrange[0]:yrange[1], xrange[0]:xrange[1], :, :]
+        if xrange is not None and yrange is not None:
+            datafits = datafits[yrange[0]:yrange[1], xrange[0]:xrange[1], :, :]
+        else:
+            raise ValueError("Crop is set to True, but xrange or yrange is None.")
+
+    # Check for any remaining NaNs
+    if np.isnan(datafits).sum() > 0:
+        raise ValueError("NaNs are present in the data after processing.")
+
     return np.ascontiguousarray(datafits, dtype='float64')
 
 
@@ -39,13 +53,24 @@ def get_nan_mask(name, tt=0, invert=False, crop=False, xrange=None, yrange=None)
 
 
 def make_north_up(data, rot_fov):
-    data = rotate(data, -rot_fov)
-    data = np.fliplr(data)
-    return data
+    # Replace NaNs with the minimum value of the non-NaN elements
+    min_val = np.nanmin(data)
+    data = np.nan_to_num(data, nan=0.999 * min_val)
+
+    # Rotate the image
+    rotated_data = rotate(data, -rot_fov, reshape=True, mode='nearest')
+
+    # Replace any NaNs introduced by rotation
+    rotated_data = np.nan_to_num(rotated_data, nan=0.99 * np.nanmin(rotated_data))
+
+    # Flip the data left to right
+    rotated_data = np.fliplr(rotated_data)
+
+    return rotated_data
 
 
-def plot_image(name, tt=0, ww=0, ss=0, save_fig=False, crop=False, xtick_range=None, ytick_range=None,
-               figsize=(8, 8), fontsize=12, rot_fov=0, north_up=False, xrange=None, yrange=None):
+def plot_crisp_image(name, tt=0, ww=0, ss=0, save_fig=False, crop=False, xtick_range=None, ytick_range=None,
+                     figsize=(8, 8), fontsize=12, rot_fov=0, north_up=False, xrange=None, yrange=None):
     if ss == 0:
         label = 'I'
     elif ss == 1:
