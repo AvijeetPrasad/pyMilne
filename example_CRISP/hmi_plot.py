@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.coordinates import SkyCoord, SkyOffsetFrame
 from enhance_data import run_enhance
+from matplotlib.colors import Normalize
+from matplotlib.cm import ScalarMappable
+# from matplotlib import cm
 # WARNING: FITSFixedWarning: 'datfix' made the change 'Set MJD-OBS to 59068.348353 from DATE-OBS'. [astropy.wcs.wcs]
 import warnings
 warnings.filterwarnings('ignore', category=astropy.wcs.FITSFixedWarning)
@@ -154,6 +157,64 @@ def plot_hmi_ic_mag(tstart, ic_series, mag_series, email, x1, x2, y1, y2, draw_c
 
     plot_submaps(ic_map, blos_map, bottom_left, top_right, center_coord,
                  draw_circle, radius, draw_rectangle, height, width, rot_fov, figsize=figsize)
+
+
+def plot_sst_pointings(tstart, ic_series, hplnt, hpltt,
+                       figsize=(8, 8), email='avijeet.prasad@astro.uio.no', save_dir='temp/'):
+
+    ic_file = fetch_and_prepare_data(ic_series, email, tstart, path=save_dir)
+    ic_map = read_fits(ic_file)
+
+    x1 = np.min(hplnt[:, 0])
+    x2 = np.max(hplnt[:, 1])
+    y1 = np.min(hpltt[:, 0])
+    y2 = np.max(hpltt[:, 1])
+
+    # center_coord = SkyCoord((x1 + x2) / 2 * u.arcsec, (y1 + y2) / 2 * u.arcsec, frame=ic_map.coordinate_frame)
+    top_right = SkyCoord(x2 * u.arcsec, y2 * u.arcsec, frame=ic_map.coordinate_frame)
+    bottom_left = SkyCoord(x1 * u.arcsec, y1 * u.arcsec, frame=ic_map.coordinate_frame)
+
+    submap = ic_map.submap(bottom_left, top_right=top_right)
+
+    fig, axes = plt.subplots(1, 1, figsize=figsize, subplot_kw={'projection': submap})
+
+    norm = Normalize(vmin=0, vmax=len(hplnt) - 1)
+    cmap = plt.get_cmap('Blues')
+
+    for tt in range(len(hplnt)):
+        x1t = hplnt[tt, 0]
+        x2t = hplnt[tt, 1]
+        y1t = hpltt[tt, 0]
+        y2t = hpltt[tt, 1]
+        width = x2t - x1t
+        height = y2t - y1t
+        width = width * u.arcsec
+        height = height * u.arcsec
+        rotation_angle = 0
+        center_coordt = SkyCoord((x1t + x2t) / 2 * u.arcsec, (y1t + y2t) / 2 * u.arcsec, frame=ic_map.coordinate_frame)
+        offset_frame = SkyOffsetFrame(origin=center_coordt, rotation=rotation_angle)
+        rectangle = SkyCoord(lon=[-1/2, 1/2] * width, lat=[-1/2, 1/2] * height, frame=offset_frame)
+
+        submap.draw_quadrangle(
+            rectangle,
+            axes=axes,
+            edgecolor=cmap(norm(tt)),
+            linestyle="--",
+            linewidth=0.25,
+        )
+
+    title_pad = 5
+    submap.plot(axes=axes)
+    axes.set_title(axes.get_title(), pad=title_pad)
+    axes.grid(False)
+
+    sm = ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])  # Dummy array for colorbar
+    cbar = plt.colorbar(sm, ax=axes, orientation='vertical', shrink=0.7, pad=0.05)
+    cbar.set_label('Time step')
+
+    plt.tight_layout()
+    plt.show()
 
 
 def main():
