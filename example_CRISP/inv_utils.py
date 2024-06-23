@@ -9,6 +9,7 @@ from astropy.coordinates import get_sun
 from astropy.constants import R_sun
 import astropy.units as u
 from scipy.ndimage import rotate
+from helita.io import lp
 
 
 def loadFits(name, tt=0, crop=False, xrange=None, yrange=None, nan_to_num=True):
@@ -441,3 +442,74 @@ def get_fits_info(filename, verbose=False, pprint=True):
     }
 
     return out_dict
+
+
+def plot_sst_blos_bhor(blos_file, bhor_file, tt=0, xrange=None, yrange=None, figsize=(20, 10),
+                       cmap='Greys_r', interpolation='nearest', aspect='equal',
+                       origin='lower', colorbar_orientation='horizontal',
+                       colorbar_shrink=0.8, colorbar_pad=0.05, fontsize=14,
+                       blos_label='Blos [G]', bhor_label='Bhor [G]'):
+    """
+    Plot magnetic maps for Blos and Bhor.
+
+    Parameters:
+    - blos_file (str): Path to the Blos file.
+    - bhor_file (str): Path to the Bhor file.
+    - tt (int): Time index to plot.
+    - xrange (list): Range of x coordinates to crop.
+    - yrange (list): Range of y coordinates to crop.
+    - figsize (tuple): Size of the figure.
+    - cmap (str): Colormap to use for the images.
+    - interpolation (str): Interpolation method for imshow.
+    - aspect (str): Aspect ratio for imshow.
+    - origin (str): Origin for imshow.
+    - colorbar_orientation (str): Orientation of the colorbars.
+    - colorbar_shrink (float): Shrink factor for the colorbars.
+    - colorbar_pad (float): Padding for the colorbars.
+    - fontsize (int): Font size for the labels and ticks.
+    - blos_label (str): Label for the Blos colorbar.
+    - bhor_label (str): Label for the Bhor colorbar.
+
+    # Example usage
+    blos_file = 'path/to/blos_file'
+    bhor_file = 'path/to/bhor_file'
+    xrange = [0, 100]  # example range
+    yrange = [0, 100]  # example range
+
+    plot_sst_blos_bhor(blos_file, bhor_file, xrange, yrange)
+    """
+    blos_sst = lp.getdata(blos_file)
+    bhor_sst = lp.getdata(bhor_file)
+
+    if xrange is not None and yrange is not None:
+        blos_sst_crop = blos_sst[xrange[0]:xrange[1], yrange[0]:yrange[1], tt].T
+        bhor_sst_crop = bhor_sst[xrange[0]:xrange[1], yrange[0]:yrange[1], tt].T
+    else:
+        blos_sst_crop = blos_sst[:, :, tt].T
+        bhor_sst_crop = bhor_sst[:, :, tt].T
+
+    # Create a new figure for Blos and Bhor maps
+    fig2, ax2 = plt.subplots(nrows=1, ncols=2, figsize=figsize)
+
+    vmin = np.percentile(blos_sst_crop, 1)
+    vmax = np.percentile(blos_sst_crop, 99)
+    im1 = ax2[0].imshow(blos_sst_crop, cmap=cmap, interpolation=interpolation,
+                        aspect=aspect, vmin=vmin, vmax=vmax, origin=origin)
+    ax2[0].tick_params(axis='both', which='major', labelsize=fontsize)
+    cbar1 = fig2.colorbar(im1, ax=ax2[0], orientation=colorbar_orientation,
+                          shrink=colorbar_shrink, pad=colorbar_pad)
+    cbar1.set_label(blos_label, fontsize=fontsize)
+    cbar1.ax.tick_params(labelsize=0.8 * fontsize)
+
+    # Bhor map
+    im2 = ax2[1].imshow(bhor_sst_crop, cmap=cmap, interpolation=interpolation,
+                        aspect=aspect, origin=origin)
+    ax2[1].tick_params(axis='both', which='major', labelsize=fontsize)
+    cbar2 = fig2.colorbar(im2, ax=ax2[1], orientation=colorbar_orientation,
+                          shrink=colorbar_shrink, pad=colorbar_pad)
+    cbar2.set_label(bhor_label, fontsize=fontsize)
+    cbar2.ax.tick_params(labelsize=0.8 * fontsize)
+
+    fig2.tight_layout()
+
+    plt.show()
