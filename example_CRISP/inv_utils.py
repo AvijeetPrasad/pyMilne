@@ -12,6 +12,8 @@ from scipy.ndimage import rotate, median_filter
 from helita.io import lp
 from joblib import Parallel, delayed
 import os
+import json
+import sys
 
 
 def load_crisp_fits(name, tt=0, crop=False, xrange=None, yrange=None, nan_to_num=True):
@@ -818,12 +820,110 @@ def best_contrast_frame(data_cube):
     return best_frame, best_index, contrasts
 
 
-def plot_contrast(contrasts):
+def plot_contrast(contrasts, figsize=(10, 6)):
     """Plot the contrast as a function of the time index."""
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=figsize)
     plt.plot(contrasts, marker='o')
     plt.title('Contrast as a Function of Time Index')
     plt.xlabel('Time Index')
     plt.ylabel('Contrast')
     plt.grid(True)
     plt.show()
+
+
+def load_config(config_file):
+    with open(config_file, 'r') as file:
+        config = json.load(file)
+    return config
+
+
+def check_input_config(config, confirm=True, pprint=True):
+    # Set default values for parameters
+    defaults = {
+        'xorg': 0,
+        'yorg': 0,
+        'scale': 0.044,
+        'is_north_up': True,
+        'crop': False,
+        'shape': 'circle',
+        'hmi_con_series': 'hmi.Ic_45s',
+        'hmi_mag_series': 'hmi.M_45s',
+        'email': ''
+    }
+
+    # Update config with default values if keys are missing
+    for key, value in defaults.items():
+        config.setdefault(key, value)
+
+    required_keys = ['data_dir', 'crisp_im']
+
+    for key in required_keys:
+        if key not in config:
+            print(f"Error: Missing required configuration key '{key}'")
+            sys.exit(1)
+
+    data_dir = config['data_dir']
+    # set sav_dir as data_dir if not provided
+    config.setdefault('save_dir', data_dir)
+
+    crisp_im = os.path.join(data_dir, config['crisp_im'])
+
+    if not os.path.exists(crisp_im):
+        print(f"Error: File not found '{crisp_im}'")
+        sys.exit(1)
+
+    # Get the time index with the best contrast
+    data_cube = load_crisp_fits_all_timesteps(crisp_im, crop=False)
+    best_frame, best_index, contrasts = best_contrast_frame(data_cube)
+    # set the best_index as default time index in config
+    config.setdefault('tt', best_index)
+    # Load FITS header to get xsize and ysize if not provided
+    fits_info = get_fits_info(crisp_im, pprint=False)
+    config.setdefault('xsize', fits_info['nx'])
+    config.setdefault('ysize', fits_info['ny'])
+
+    xorg = config['xorg']
+    xsize = config['xsize']
+    yorg = config['yorg']
+    ysize = config['ysize']
+    time_index = config['tt']
+    scale = config['scale']
+    is_north_up = config['is_north_up']
+    crop = config['crop']
+    shape = config['shape']
+    save_dir = config['save_dir']
+    hmi_con_series = config['hmi_con_series']
+    hmi_mag_series = config['hmi_mag_series']
+    email = config['email']
+
+    # Print the parameters to verify
+    if pprint:
+        print(f"Data directory: {data_dir}")
+        print(f"Save directory: {save_dir}")
+        print(f"CRISP image   : {crisp_im}")
+        print(f"Time index    : {time_index}")
+        print(f"Scale         : {scale}")
+        print(f"Is North Up   : {is_north_up}")
+        print(f"Shape         : {shape}")
+        print(f"Crop          : {crop}")
+        print(f"xorg          : {xorg}")
+        print(f"yorg          : {yorg}")
+        print(f"xsize         : {xsize}")
+        print(f"ysize         : {ysize}")
+        print(f"Email         : {email}")
+
+    # Confirm the parameters from the user
+    if confirm:
+        validate_input = input("Do you want to proceed with these parameters? (y/n): ")
+        if validate_input.lower() != 'y':
+            print("Exiting the program.")
+            sys.exit(0)
+
+    # Return all the variables as a config dictionary
+    config = {
+        'data_dir': data_dir, 'crisp_im': crisp_im, 'save_dir': save_dir,
+        'xorg': xorg, 'xsize': xsize, 'yorg': yorg, 'ysize': ysize, 'time_index': time_index, 'scale': scale,
+        'is_north_up': is_north_up, 'crop': crop, 'shape': shape, 'contrasts': contrasts, 'best_frame': best_frame,
+        'hmi_con_series': hmi_con_series, 'hmi_mag_series': hmi_mag_series, 'email': email
+    }
+    return config
