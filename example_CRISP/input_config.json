@@ -1,0 +1,19 @@
+{
+    "data_dir": "/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/",
+    "crisp_im": "nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits",
+    "blos_cube": "Blos.6173_2020-08-07T08:22:14.icube",
+    "bhor_cube": "Bhor.6173_2020-08-07T08:22:14.icube",
+    "xorg": 200,
+    "xsize": 480,
+    "yorg": 360,
+    "ysize": 400,
+    "time_index": 0,
+    "scale": 0.058,
+    "is_north_up": false,
+    "crop": false,
+    "shape": "square",
+    "hmi_con_series": "hmi.Ic_45s",
+    "hmi_mag_series": "hmi.M_45s",
+    "email": "avijeet.prasad@astro.uio.no",
+    "save_dir":  "temp/"
+}
