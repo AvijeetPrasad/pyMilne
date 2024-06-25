@@ -8,11 +8,13 @@ from astropy.time import Time, TimeDelta
 from astropy.coordinates import get_sun
 from astropy.constants import R_sun
 import astropy.units as u
-from scipy.ndimage import rotate
+from scipy.ndimage import rotate, median_filter
 from helita.io import lp
+from joblib import Parallel, delayed
+import os
 
 
-def loadFits(name, tt=0, crop=False, xrange=None, yrange=None, nan_to_num=True):
+def load_crisp_fits(name, tt=0, crop=False, xrange=None, yrange=None, nan_to_num=True):
     # Load the FITS data
     datafits = fits.open(name, 'readonly')[0].data[tt, ...]
 
@@ -38,6 +40,33 @@ def loadFits(name, tt=0, crop=False, xrange=None, yrange=None, nan_to_num=True):
         raise ValueError("NaNs are present in the data after processing.")
 
     return np.ascontiguousarray(datafits, dtype='float64')
+
+
+def parallel_median_filter(Imodel, size_filter=21, n_jobs=None):
+    # If n_jobs is not provided, use 90% of available CPUs
+    if n_jobs is None:
+        n_jobs = int(os.cpu_count() * 0.9)
+
+    def apply_median_filter(slice_index):
+        if slice_index == 2:
+            sin2azi = np.sin(Imodel[:, :, 2] * 2.0)
+            cos2azi = np.cos(Imodel[:, :, 2] * 2.0)
+            filtered_sin2azi = median_filter(sin2azi, size=(size_filter, size_filter))
+            filtered_cos2azi = median_filter(cos2azi, size=(size_filter, size_filter))
+            result = 0.5 * np.arctan2(filtered_sin2azi, filtered_cos2azi)
+            result[result < 0] += np.pi
+            return result
+        else:
+            return median_filter(Imodel[:, :, slice_index], size=(size_filter, size_filter))
+
+    # Apply the filter in parallel
+    results = Parallel(n_jobs=n_jobs)(delayed(apply_median_filter)(i) for i in range(Imodel.shape[2]))
+
+    # Combine the results back into the Imodel array
+    for i in range(Imodel.shape[2]):
+        Imodel[:, :, i] = results[i]
+
+    return Imodel
 
 
 def get_nan_mask(name, tt=0, invert=False, crop=False, xrange=None, yrange=None):
@@ -82,7 +111,7 @@ def plot_crisp_image(name, tt=0, ww=0, ss=0, save_fig=False, crop=False, xtick_r
     else:
         label = ''
 
-    data = loadFits(name, tt, nan_to_num=True)  # ny, nx, ns, nw
+    data = load_crisp_fits(name, tt, nan_to_num=True)  # ny, nx, ns, nw
     # plot data using imshow for the first wavelength and Stokes parameter
     fig, ax = plt.subplots(1, 1, figsize=figsize)
 
@@ -132,7 +161,7 @@ def plot_crisp_image(name, tt=0, ww=0, ss=0, save_fig=False, crop=False, xtick_r
     plt.show()
 
 
-def loadCmap(name, tt=0, crop=False, xrange=None, yrange=None):
+def load_crisp_cmap(name, tt=0, crop=False, xrange=None, yrange=None):
     """
     Load the 'WCSDVARR' key from a FITS file for a specific time index and fill NaNs with 0s.
 
@@ -154,7 +183,22 @@ def loadCmap(name, tt=0, crop=False, xrange=None, yrange=None):
     return np.ascontiguousarray(dlambda, dtype='float64')
 
 
-def loadFitsHeader(name):
+def load_fits_data(name, ext=0):
+    """
+    Load the data of a FITS file.
+
+    Parameters:
+    name (str): The name of the FITS file.
+
+    Returns:
+    np.ndarray: The data of the FITS file.
+    """
+    with fits.open(name, 'readonly') as hdulist:
+        data = hdulist[ext].data
+    return data
+
+
+def load_fits_header(name):
     """
     Load the header of a FITS file.
 
@@ -166,17 +210,44 @@ def loadFitsHeader(name):
     """
     with fits.open(name, 'readonly') as hdulist:
         header = hdulist[0].header
+    # convert the header to a dictionary
+    header = dict(header)
     return header
 
 
-def getWavelengths(name):
+def save_fits(data, header, filename, inv_comment=None, overwrite=False):
+    """
+    Save a FITS file with the specified data and header, including an optional comment about the data.
+
+    Parameters:
+    data (np.ndarray): The data to save.
+    header (astropy.io.fits.header.Header): The header to save.
+    filename (str): The name of the FITS file to save.
+    comment (str): An optional comment to add to the header.
+    overwrite (bool): Whether to overwrite the file if it already exists.
+    """
+    # Add a comment to the header if provided
+    if inv_comment:
+        header['INVERSION_COMMENT'] = inv_comment
+
+    # Check if filename already exists
+    if os.path.exists(filename) and not overwrite:
+        print(f"File {filename} already exists. Set overwrite=True to overwrite.")
+        return
+    else:
+        hdu = fits.PrimaryHDU(data, header=header)
+        hdu.writeto(filename, overwrite=True)
+        print(f"File {filename} saved successfully.")
+
+
+def get_wavelengths(name):
     io = fits.open(name)
     # Wavelength information for all wavelength points in the first time frame
     wav_output = io[1].data[0][0][0, :, 0, 0, 2] * 10  # convert from nm to Angstrom
     return np.ascontiguousarray(wav_output, dtype='float64')
 
 
-def findgrid(w, dw, extra=5):
+def find_grid(w, dw, extra=5):
     """
     Findgrid creates a regular wavelength grid
     with a step of dw that includes all points in
@@ -198,7 +269,7 @@ def findgrid(w, dw, extra=5):
     return iw, idx
 
 
-def plot_output(mos, mask, scale=0.059, save_fig=False, figsize=(30, 30)):
+def plot_inversion_output(mos, mask=None, scale=0.059, save_fig=False, figsize=(30, 30)):
     """
     Plots various components of the `mos` array, applying a mask and scaling.
 
@@ -211,24 +282,26 @@ def plot_output(mos, mask, scale=0.059, save_fig=False, figsize=(30, 30)):
     # Create a deep copy of the input array to avoid modifying the original
     mos2 = copy.deepcopy(mos)
 
-    # Update `mos2` based on `mask`
-    for i in range(mos2.shape[2]):
-        if i == 1:
-            mos2[:, :, i][mask] = np.pi / 2
-        elif i == 2:
-            mos2[:, :, i][mask] = np.pi
-        elif i == 3:
-            mos2[:, :, i][mask] = 0
-        else:
-            vmax = np.percentile(mos[:, :, i][~mask], 99)
-            mos2[:, :, i][mask] = 1.01 * vmax
+    if mask is not None:
+        # Update `mos2` based on `mask`
+        for i in range(mos2.shape[2]):
+            if i == 1:
+                mos2[:, :, i][mask] = np.pi / 2
+            elif i == 2:
+                mos2[:, :, i][mask] = np.pi
+            elif i == 3:
+                mos2[:, :, i][mask] = 0
+            else:
+                vmax = np.percentile(mos[:, :, i][~mask], 99)
+                mos2[:, :, i][mask] = 1.01 * vmax
 
     # Initialize the figure and axes for subplots
     fig, ax = plt.subplots(nrows=3, ncols=3, figsize=figsize)
     ax1 = ax.flatten()
 
     # Define colormaps and labels for the subplots
-    cmaps = ['gist_gray', 'RdGy', 'gist_gray', 'bwr', 'gist_gray', 'gist_gray', 'gist_gray', 'gist_gray', 'gist_gray']
+    cmaps = ['gist_gray', 'gist_gray', 'gist_gray', 'bwr', 'gist_gray',
+             'gist_gray', 'gist_gray', 'gist_gray', 'gist_gray']
     labels = ['B [G]', 'inc [rad]', 'azi [rad]', 'Vlos [km/s]', 'vDop [Angstroms]', 'lineop', 'damp', 'S0', 'S1']
 
     nx, ny = mos[:, :, 0].shape
@@ -269,20 +342,154 @@ def plot_output(mos, mask, scale=0.059, save_fig=False, figsize=(30, 30)):
     plt.show()
 
 
-def plot_mag(mos, mask, scale=0.059, save_fig=False, vmin=None, vmax=None, figsize=(20, 10)):
+def masked_mean(data, mask):
+    """
+    Compute the mean of the data array, excluding the masked values.
+
+    Parameters:
+    data (numpy.ndarray): The data array.
+    mask (numpy.ndarray): The mask array.
+
+    Returns:
+    float: The mean of the data array, excluding the masked values.
+    """
+    return np.mean(data[~mask])
+
+
+def masked_stats(data, mask, pprint=True):
+    """
+    Compute the mean, median, and standard deviation of the data array, excluding the masked values.
+
+    Parameters:
+    data (numpy.ndarray): The data array.
+    mask (numpy.ndarray): The mask array.
+
+    Returns:
+    tuple: A tuple containing the mean, median, and standard deviation of the data array, excluding the masked values.
+    """
+    masked_data = data[~mask]
+    masked_mean = np.mean(masked_data)
+    masked_median = np.median(masked_data)
+    masked_std = np.std(masked_data)
+    masked_max = np.max(masked_data)
+    masked_min = np.min(masked_data)
+    if pprint:
+        print(f"Max: {masked_max:.2f},")
+        print(f"Min: {masked_min:.2f}")
+        print(f"Mean: {masked_mean:.2f}")
+        print(f"Median: {masked_median:.2f}")
+        print(f"Standard Deviation: {masked_std:.2f}")
+    return masked_max, masked_min, masked_mean, masked_median, masked_std
+
+
+def masked_data(data, mask, replace_val=0, fix_nan=False, fix_inf=False):
+    """
+    Mask the data array using the mask array, replacing the masked values with a specified value.
+
+    Parameters:
+    data (numpy.ndarray): The data array.
+    mask (numpy.ndarray): The mask array.
+    replace_val (float): The value to replace the masked values with.
+
+    Returns:
+    numpy.ndarray: The masked data array.
+    """
+    data[mask] = replace_val
+    # check for nans and inf in the data and also replace them with replace_val value
+    nansum = np.sum(np.isnan(data))
+    infs = np.sum(np.isinf(data))
+    if nansum > 0:
+        print(f"Nans are present in the data in {nansum} pixels")
+        if fix_nan:
+            data = np.nan_to_num(data, nan=replace_val, posinf=replace_val, neginf=replace_val)
+            print(f"Nans have been replaced with {replace_val}")
+
+    if infs > 0:
+        print(f"Infs are present in the data in {infs} pixels")
+        if fix_inf:
+            data = np.nan_to_num(data, nan=replace_val, posinf=replace_val, neginf=replace_val)
+            print(f"Infs have been replaced with {replace_val}")
+    return data
+
+
+def plot_hist(data, bins=20, save_fig=False, figsize=(8, 8), vmin=None, vmax=None, fontsize=14,
+              figname='histogram.pdf', title='Histogram', color='b', alpha=0.5, clip=False, clip_range=[None, None]):
+    """
+    Plot the histogram of the data array.
+
+    Parameters:
+    - data: array-like, the data to plot
+    - bins: int, the number of bins for the histogram
+    - save_fig: bool, whether to save the figure
+    - figsize: tuple, size of the figure
+    - vmin: float, minimum value for the histogram range
+    - vmax: float, maximum value for the histogram range
+    - fontsize: int, font size for the labels and title
+    - figname: str, name of the file to save the figure
+    - title: str, title of the histogram
+    - color: str, color of the histogram
+    - alpha: float, alpha value for the histogram fill
+    """
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+    if vmin is None:
+        vmin = data.min()
+    if vmax is None:
+        vmax = data.max()
+
+    flat_data = data.flatten() if data.ndim > 1 else data
+    ax.hist(flat_data, bins=bins, range=(vmin, vmax), histtype='stepfilled', color=color, alpha=alpha)
+
+    ax.set_xlabel('Value', fontsize=fontsize)
+    ax.set_ylabel('Frequency', fontsize=fontsize)
+    ax.set_title(title, fontsize=fontsize)
+    ax.tick_params(axis='both', which='major', labelsize=0.8 * fontsize)
+
+    fig.tight_layout()
+    if save_fig:
+        print(f"Saving figure with results -> {figname}")
+        fig.savefig(figname, dpi=250, format='pdf')
+    plt.show()
+
+
+def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=None, cutoff=0.001,
+               fontsize=14, figname='image.pdf', cmap='Greys_r', title='Image', clip=False):
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    nx, ny = data.shape
+    extent = np.float32((0, nx, 0, ny)) * scale
+    if clip:
+        data = np.clip(data, a_min=vmin, a_max=vmax)
+    img = ax.imshow(im.histo_opt(data, cutoff=cutoff), cmap=cmap, interpolation='nearest',
+                    aspect='equal', origin='lower', extent=extent, vmin=vmin, vmax=vmax)
+    ax.tick_params(axis='both', which='major', labelsize=0.8 * fontsize)
+    ax.set_xlabel('X [arcsec]', fontsize=fontsize)
+    ax.set_ylabel('Y [arcsec]', fontsize=fontsize)
+    cbar = fig.colorbar(img, ax=ax, orientation='horizontal', shrink=0.8, pad=0.10)
+    cbar.set_label(title, fontsize=fontsize)
+    cbar.ax.tick_params(labelsize=0.8 * fontsize)
+    fig.tight_layout()
+    if save_fig:
+        print(f"Saving figure with results -> {figname}")
+        fig.savefig(figname, dpi=250, format='pdf')
+    plt.show()
+
+
+def plot_mag(mos, mask, scale=0.058, save_fig=False, v1min=None, v1max=None, v2max=None, figsize=(20, 10)):
     mos2 = copy.deepcopy(mos)
+    nx, ny = mos2[:, :, 0].shape
+    extent = np.float32((0, nx, 0, ny)) * scale
     # Create a new figure for Blos and Bhor maps
     fig2, ax2 = plt.subplots(nrows=1, ncols=2, figsize=figsize)
 
     # Blos map
     Blos = mos2[:, :, 0] * np.cos(mos2[:, :, 1])
     Blos[mask] = 1.01 * np.percentile(Blos[~mask], 99)
-    if vmin is None:
-        vmin = np.percentile(Blos, 1)
-    if vmax is None:
-        vmax = np.percentile(Blos, 99)
+    if v1min is None:
+        v1min = np.percentile(Blos, 1)
+    if v1max is None:
+        v1max = np.percentile(Blos, 99)
     im1 = ax2[0].imshow(Blos, cmap='Greys_r', interpolation='nearest',
-                        aspect='equal', vmin=vmin, vmax=vmax, origin='lower')
+                        aspect='equal', vmin=v1min, vmax=v1max, origin='lower', extent=extent)
     ax2[0].tick_params(axis='both', which='major', labelsize=14)
     cbar1 = fig2.colorbar(im1, ax=ax2[0], orientation='horizontal', shrink=0.8, pad=0.05)
     cbar1.set_label('Blos [G]', fontsize=18)
@@ -291,10 +498,10 @@ def plot_mag(mos, mask, scale=0.059, save_fig=False, vmin=None, vmax=None, figsi
     # Bhor map
     Bhor = mos2[:, :, 0] * np.sin(mos2[:, :, 1])
     Bhor[mask] = 1.01 * np.percentile(Bhor[~mask], 99)
-    if vmax is None:
-        vmax = np.percentile(Bhor, 99)
+    if v2max is None:
+        v2max = np.percentile(Bhor, 95)
     im2 = ax2[1].imshow(Bhor, cmap='Greys_r', interpolation='nearest',
-                        aspect='equal', origin='lower')
+                        aspect='equal', origin='lower', extent=extent, vmax=v2max)
     ax2[1].tick_params(axis='both', which='major', labelsize=14)
     cbar2 = fig2.colorbar(im2, ax=ax2[1], orientation='horizontal', shrink=0.8, pad=0.05)
     cbar2.set_label('Bhor [G]', fontsize=18)
@@ -470,10 +677,7 @@ def get_fits_info(filename, verbose=False, pprint=True):
 
 
 def plot_sst_blos_bhor(blos_file, bhor_file, tt=0, xrange=None, yrange=None, figsize=(20, 10),
-                       cmap='Greys_r', interpolation='nearest', aspect='equal',
-                       origin='lower', colorbar_orientation='horizontal',
-                       colorbar_shrink=0.8, colorbar_pad=0.05, fontsize=14,
-                       blos_label='Blos [G]', bhor_label='Bhor [G]'):
+                       cmap='Greys_r', fontsize=14, crop=False, vmin1=None, vmax1=None, vmax2=None):
     """
     Plot magnetic maps for Blos and Bhor.
 
@@ -506,7 +710,7 @@ def plot_sst_blos_bhor(blos_file, bhor_file, tt=0, xrange=None, yrange=None, fig
     blos_sst = lp.getdata(blos_file)
     bhor_sst = lp.getdata(bhor_file)
 
-    if xrange is not None and yrange is not None:
+    if crop:
         blos_sst_crop = blos_sst[xrange[0]:xrange[1], yrange[0]:yrange[1], tt].T
         bhor_sst_crop = bhor_sst[xrange[0]:xrange[1], yrange[0]:yrange[1], tt].T
     else:
@@ -515,11 +719,20 @@ def plot_sst_blos_bhor(blos_file, bhor_file, tt=0, xrange=None, yrange=None, fig
 
     # Create a new figure for Blos and Bhor maps
     fig2, ax2 = plt.subplots(nrows=1, ncols=2, figsize=figsize)
-
-    vmin = np.percentile(blos_sst_crop, 1)
-    vmax = np.percentile(blos_sst_crop, 99)
+    interpolation = 'nearest'
+    origin = 'lower'
+    aspect = 'equal'
+    colorbar_orientation = 'horizontal'
+    colorbar_shrink = 0.8
+    colorbar_pad = 0.05
+    blos_label = 'Blos [G]'
+    bhor_label = 'Bhor [G]'
+    if vmin1 is None:
+        vmin1 = np.percentile(blos_sst_crop, 1)
+    if vmax1 is None:
+        vmax1 = np.percentile(blos_sst_crop, 99)
     im1 = ax2[0].imshow(blos_sst_crop, cmap=cmap, interpolation=interpolation,
-                        aspect=aspect, vmin=vmin, vmax=vmax, origin=origin)
+                        aspect=aspect, vmin=vmin1, vmax=vmax1, origin=origin)
     ax2[0].tick_params(axis='both', which='major', labelsize=fontsize)
     cbar1 = fig2.colorbar(im1, ax=ax2[0], orientation=colorbar_orientation,
                           shrink=colorbar_shrink, pad=colorbar_pad)
@@ -527,8 +740,10 @@ def plot_sst_blos_bhor(blos_file, bhor_file, tt=0, xrange=None, yrange=None, fig
     cbar1.ax.tick_params(labelsize=0.8 * fontsize)
 
     # Bhor map
+    if vmax2 is None:
+        vmax2 = np.percentile(bhor_sst_crop, 95)
     im2 = ax2[1].imshow(bhor_sst_crop, cmap=cmap, interpolation=interpolation,
-                        aspect=aspect, origin=origin)
+                        aspect=aspect, origin=origin, vmin=0, vmax=vmax2)
     ax2[1].tick_params(axis='both', which='major', labelsize=fontsize)
     cbar2 = fig2.colorbar(im2, ax=ax2[1], orientation=colorbar_orientation,
                           shrink=colorbar_shrink, pad=colorbar_pad)
@@ -537,4 +752,78 @@ def plot_sst_blos_bhor(blos_file, bhor_file, tt=0, xrange=None, yrange=None, fig
 
     fig2.tight_layout()
 
+    plt.show()
+
+
+def load_crisp_fits_all_timesteps(name, crop=False, xrange=None, yrange=None, nan_to_num=True):
+    # Load the FITS data
+    hdul = fits.open(name, 'readonly')
+    datafits = hdul[0].data  # Assuming the data is in the primary HDU
+    nt, ns, nw, ny, nx = datafits.shape
+
+    if nan_to_num:
+        # Replace NaNs with the minimum value of the non-NaN elements
+        min_val = np.nanmin(datafits)
+        datafits = np.nan_to_num(datafits, nan=0.999 * min_val)
+
+    # Extract data for wavelength position ww=0 and stokes vector ss=0 for all time steps
+    data_cube = datafits[:, 0, 0, :, :]
+
+    # Normalize the data to average
+    qs_nom = np.nanmean(data_cube[0, :, :])
+    if qs_nom == 0:
+        raise ValueError("Normalization value (qs_nom) is zero, leading to potential division by zero.")
+    data_cube /= qs_nom
+
+    if crop:
+        if xrange is not None and yrange is not None:
+            data_cube = data_cube[:, yrange[0]:yrange[1], xrange[0]:xrange[1]]
+        else:
+            raise ValueError("Crop is set to True, but xrange or yrange is None.")
+
+    # Check for any remaining NaNs
+    if np.isnan(data_cube).sum() > 0:
+        raise ValueError("NaNs are present in the data after processing.")
+
+    return np.ascontiguousarray(data_cube, dtype='float64')
+
+
+def calculate_contrast(image):
+    """Calculate the contrast of a single image."""
+    return np.std(image)
+
+
+def best_contrast_frame(data_cube):
+    """
+    Find the frame with the best contrast from an image data cube.
+
+    Parameters:
+    data_cube (numpy.ndarray): The image data cube of shape (ny, nx, nt).
+
+    Returns:
+    tuple: A tuple containing the image with the best contrast and a list of contrasts.
+    """
+    nt, ny, nx = data_cube.shape
+    contrasts = []
+
+    # Calculate the contrast for each frame
+    for t in range(nt):
+        contrast = calculate_contrast(data_cube[t])
+        contrasts.append(contrast)
+
+    # Find the index of the frame with the best contrast
+    best_index = np.argmax(contrasts)
+    best_frame = data_cube[best_index]
+
+    return best_frame, best_index, contrasts
+
+
+def plot_contrast(contrasts):
+    """Plot the contrast as a function of the time index."""
+    plt.figure(figsize=(10, 6))
+    plt.plot(contrasts, marker='o')
+    plt.title('Contrast as a Function of Time Index')
+    plt.xlabel('Time Index')
+    plt.ylabel('Contrast')
+    plt.grid(True)
     plt.show()
