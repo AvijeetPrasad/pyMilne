@@ -39,13 +39,13 @@ email: ""
 save_dir: "temp/"
 
 # Plot SST pointings? To plot SST pointings for the full observation over HMI Ic
-plot_sst_pointings_flag: true
+plot_sst_pointings_flag: false
 
 # Plot HMI Icon and Mag? To plot HMI Ic and Mag images with SST FOV overlaid for comparison
-plot_hmi_ic_mag_flag: true
+plot_hmi_ic_mag_flag: false
 
 # Plot SST CRISP image to compare with HMI? To plot SST CRISP image for quick comparison with HMI Ic and Mag
-plot_crisp_image_flag: true
+plot_crisp_image_flag: false
 
 
 
