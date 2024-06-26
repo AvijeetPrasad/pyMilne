@@ -2,6 +2,7 @@ import numpy as np
 from astropy.io import fits
 from einops import rearrange
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 import imtools as im
 import copy
 from astropy.time import Time, TimeDelta
@@ -14,6 +15,14 @@ from joblib import Parallel, delayed
 import os
 import json
 import sys
+import re
+import yaml
+from lp_scripts.get_fov_angle import fov_angle
+
+
+class container:
+    def __init__(self):
+        pass
 
 
 def load_crisp_fits(name, tt=0, crop=False, xrange=None, yrange=None, nan_to_num=True):
@@ -455,9 +464,10 @@ def plot_hist(data, bins=20, save_fig=False, figsize=(8, 8), vmin=None, vmax=Non
 
 
 def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=None, cutoff=0.001,
-               fontsize=14, figname='image.pdf', cmap='Greys_r', title='Image', clip=False):
+               fontsize=14, figname='image.pdf', cmap='Greys_r', title='Image', clip=False,
+               xrange=None, yrange=None, show_roi=False, grid=False):
     fig, ax = plt.subplots(1, 1, figsize=figsize)
-    nx, ny = data.shape
+    ny, nx = data.shape  # Note: the shape is (ny, nx)
     extent = np.float32((0, nx, 0, ny)) * scale
     if clip:
         data = np.clip(data, a_min=vmin, a_max=vmax)
@@ -469,11 +479,54 @@ def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=No
     cbar = fig.colorbar(img, ax=ax, orientation='horizontal', shrink=0.8, pad=0.10)
     cbar.set_label(title, fontsize=fontsize)
     cbar.ax.tick_params(labelsize=0.8 * fontsize)
+
+    # Check if xrange and yrange are provided
+    if show_roi and xrange is not None and yrange is not None:
+        x1, x2 = np.array(xrange) * scale
+        y1, y2 = np.array(yrange) * scale
+        # Add a dotted rectangle to show the region of interest
+        rect = Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=1, edgecolor='r', linestyle='--', facecolor='none')
+        ax.add_patch(rect)
+    if grid:
+        ax.grid(True)
+        # gridline in black dashed line
+        ax.grid(color='black', linestyle='--', linewidth=0.5)
     fig.tight_layout()
     if save_fig:
         print(f"Saving figure with results -> {figname}")
         fig.savefig(figname, dpi=250, format='pdf')
     plt.show()
+
+
+def interactive_fov_selection(crisp_im, scale=1):
+    data = load_crisp_fits(crisp_im)[:, :, 0, 0]
+    ny, nx = data.shape
+    x1, x2 = 0, nx-1
+    y1, y2 = 0, ny-1
+    plot_image(data, title='Interactive FOV Selection', cmap='gray', scale=scale, figsize=(6, 6),
+               show_roi=True, xrange=[x1, x2], yrange=[y1, y2], grid=True)
+    while True:
+        print(f"Current FOV: x1 = {x1}, x2 = {x2}, y1 = {y1}, y2 = {y2}")
+        response = input("Update FOV? (y/n): ").strip().lower()
+        if response == 'yes' or response == 'y':
+            x1 = int(input("x1 (bottom left): "))
+            x2 = int(input("x2 (top right): "))
+            y1 = int(input("y1 (bottom left): "))
+            y2 = int(input("y2 (top right): "))
+
+            xrange = [x1, x2]
+            yrange = [y1, y2]
+
+            plot_image(data, title='Interactive ROI Selection', cmap='gray', scale=scale, figsize=(6, 6),
+                       show_roi=True, xrange=xrange, yrange=yrange)
+
+        else:
+            xrange = [x1, x2]
+            yrange = [y1, y2]
+            break
+    xorg, yorg = xrange[0], yrange[0]
+    xsize, ysize = xrange[1]-xrange[0], yrange[1]-yrange[0]
+    return xorg, yorg, xsize, ysize
 
 
 def plot_mag(mos, mask, scale=0.058, save_fig=False, v1min=None, v1max=None, v2max=None, figsize=(20, 10)):
@@ -757,45 +810,49 @@ def plot_sst_blos_bhor(blos_file, bhor_file, tt=0, xrange=None, yrange=None, fig
     plt.show()
 
 
-def load_crisp_fits_all_timesteps(name, crop=False, xrange=None, yrange=None, nan_to_num=True):
+def load_crisp_fits_all_timesteps(name):
     # Load the FITS data
     hdul = fits.open(name, 'readonly')
     datafits = hdul[0].data  # Assuming the data is in the primary HDU
     nt, ns, nw, ny, nx = datafits.shape
 
-    if nan_to_num:
-        # Replace NaNs with the minimum value of the non-NaN elements
-        min_val = np.nanmin(datafits)
-        datafits = np.nan_to_num(datafits, nan=0.999 * min_val)
-
     # Extract data for wavelength position ww=0 and stokes vector ss=0 for all time steps
     data_cube = datafits[:, 0, 0, :, :]
 
+    # Create a mask for NaNs
+    mask = np.isnan(data_cube)
+
+    # Replace NaNs with the minimum value of the non-NaN elements
+    min_val = np.nanmin(data_cube)
+    data_cube = np.nan_to_num(data_cube, nan=0.999 * min_val)
+
     # Normalize the data to average
-    qs_nom = np.nanmean(data_cube[0, :, :])
+    qs_nom = np.nanmean(data_cube)
     if qs_nom == 0:
         raise ValueError("Normalization value (qs_nom) is zero, leading to potential division by zero.")
     data_cube /= qs_nom
-
-    if crop:
-        if xrange is not None and yrange is not None:
-            data_cube = data_cube[:, yrange[0]:yrange[1], xrange[0]:xrange[1]]
-        else:
-            raise ValueError("Crop is set to True, but xrange or yrange is None.")
-
-    # Check for any remaining NaNs
-    if np.isnan(data_cube).sum() > 0:
-        raise ValueError("NaNs are present in the data after processing.")
-
-    return np.ascontiguousarray(data_cube, dtype='float64')
+    data_cube = np.ascontiguousarray(data_cube, dtype='float64')
+    return data_cube, mask
 
 
-def calculate_contrast(image):
+def calculate_contrast(image, mask=None):
     """Calculate the contrast of a single image."""
-    return np.std(image)
+    if mask is not None:
+        # Apply the mask to the image
+        image = image[~mask]
+
+    # Calculate contrast
+    mean_value = np.mean(image)
+    std_dev = np.std(image)
+
+    if mean_value == 0:
+        raise ValueError("Mean value of the image is zero, leading to potential division by zero.")
+
+    contrast = std_dev / mean_value
+    return contrast
 
 
-def best_contrast_frame(data_cube):
+def best_contrast_frame(data_cube, mask=None):
     """
     Find the frame with the best contrast from an image data cube.
 
@@ -810,7 +867,7 @@ def best_contrast_frame(data_cube):
 
     # Calculate the contrast for each frame
     for t in range(nt):
-        contrast = calculate_contrast(data_cube[t])
+        contrast = calculate_contrast(data_cube[t], mask=mask[t])
         contrasts.append(contrast)
 
     # Find the index of the frame with the best contrast
@@ -824,17 +881,40 @@ def plot_contrast(contrasts, figsize=(10, 6)):
     """Plot the contrast as a function of the time index."""
     plt.figure(figsize=figsize)
     plt.plot(contrasts, marker='o')
-    plt.title('Contrast as a Function of Time Index')
+    # mark the frame with the best contrast with a red star
+    best_index = np.argmax(contrasts)
+    plt.plot(best_index, contrasts[best_index], 'r', marker='o', markersize=6)
+    plt.title(f'Frame with Maximum Contrast: {best_index}')
     plt.xlabel('Time Index')
     plt.ylabel('Contrast')
     plt.grid(True)
     plt.show()
 
 
-def load_config(config_file):
+def remove_comments(json_string):
+    # Remove // comments
+    json_string = re.sub(r'\/\/.*', '', json_string)
+    # Remove /* */ comments
+    json_string = re.sub(r'\/\*[\s\S]*?\*\/', '', json_string)
+    return json_string
+
+
+def load_json_config(config_file):
+    if not os.path.exists(config_file):
+        raise FileNotFoundError(f"File not found: {config_file}")
+
     with open(config_file, 'r') as file:
         config = json.load(file)
     return config
+
+
+def load_yaml_config(file_path):
+    # check if the file exists otherwise raise an error
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    with open(file_path, 'r') as file:
+        return yaml.safe_load(file)
 
 
 def check_input_config(config, confirm=True, pprint=True):
@@ -845,10 +925,14 @@ def check_input_config(config, confirm=True, pprint=True):
         'scale': 0.044,
         'is_north_up': True,
         'crop': False,
+        'check_crop': False,
         'shape': 'circle',
         'hmi_con_series': 'hmi.Ic_45s',
         'hmi_mag_series': 'hmi.M_45s',
-        'email': ''
+        'email': '',
+        'plot_sst_pointings': False,
+        'plot_hmi_ic_mag': False,
+        'plot_crisp_image': False
     }
 
     # Update config with default values if keys are missing
@@ -873,31 +957,44 @@ def check_input_config(config, confirm=True, pprint=True):
         sys.exit(1)
 
     # Get the time index with the best contrast
-    data_cube = load_crisp_fits_all_timesteps(crisp_im, crop=False)
-    best_frame, best_index, contrasts = best_contrast_frame(data_cube)
+    data_cube, mask = load_crisp_fits_all_timesteps(crisp_im)
+    best_frame, best_index, contrasts = best_contrast_frame(data_cube, mask=mask)
     # set the best_index as default time index in config
     config.setdefault('tt', best_index)
     # Load FITS header to get xsize and ysize if not provided
-    fits_info = get_fits_info(crisp_im, pprint=False)
-    config.setdefault('xsize', fits_info['nx'])
-    config.setdefault('ysize', fits_info['ny'])
+    fits_header = load_fits_header(crisp_im)
+    config.setdefault('xsize', fits_header['NAXIS1'])
+    config.setdefault('ysize', fits_header['NAXIS2'])
 
-    xorg = config['xorg']
-    xsize = config['xsize']
-    yorg = config['yorg']
-    ysize = config['ysize']
+    crop = config['crop']
+    check_crop = config['check_crop']
+    if crop and check_crop:
+        xorg, yorg, xsize, ysize = interactive_fov_selection(crisp_im, scale=1)
+    else:
+        xorg = config['xorg']
+        xsize = config['xsize']
+        yorg = config['yorg']
+        ysize = config['ysize']
     time_index = config['tt']
     scale = config['scale']
     is_north_up = config['is_north_up']
-    crop = config['crop']
+
     shape = config['shape']
     save_dir = config['save_dir']
     hmi_con_series = config['hmi_con_series']
     hmi_mag_series = config['hmi_mag_series']
     email = config['email']
+    plot_sst_pointings_flag = config['plot_sst_pointings_flag']
+    plot_hmi_ic_mag_flag = config['plot_hmi_ic_mag_flag']
+    plot_crisp_image_flag = config['plot_crisp_image_flag']
+
+    xrange = [xorg, xorg + xsize]
+    yrange = [yorg, yorg + ysize]
 
     # Print the parameters to verify
     if pprint:
+        print("\nInput Configuration Parameters:")
+        print("=" * 64)
         print(f"Data directory: {data_dir}")
         print(f"Save directory: {save_dir}")
         print(f"CRISP image   : {crisp_im}")
@@ -910,7 +1007,21 @@ def check_input_config(config, confirm=True, pprint=True):
         print(f"yorg          : {yorg}")
         print(f"xsize         : {xsize}")
         print(f"ysize         : {ysize}")
+        print(f"xrange        : {xrange}")
+        print(f"yrange        : {yrange}")
         print(f"Email         : {email}")
+
+    print("\n\nObservation Details:")
+    print("=" * 64)
+    fits_info = get_fits_info(crisp_im, pprint=True)
+    t_obs = fits_info['avg_time_obs']
+    fov = fov_angle(t_obs)
+    print(f'FOV angle: {fov:.2f} deg')
+
+    # Plot the contrast as a function of the time index
+    plot_contrast(contrasts, figsize=(6, 3))
+    plot_image(best_frame, title=f'Frame: {time_index}', cmap='gray', scale=scale, figsize=(6, 6),
+               show_roi=True, xrange=xrange, yrange=yrange)
 
     # Confirm the parameters from the user
     if confirm:
@@ -920,10 +1031,14 @@ def check_input_config(config, confirm=True, pprint=True):
             sys.exit(0)
 
     # Return all the variables as a config dictionary
-    config = {
+    config_dict = {
         'data_dir': data_dir, 'crisp_im': crisp_im, 'save_dir': save_dir,
         'xorg': xorg, 'xsize': xsize, 'yorg': yorg, 'ysize': ysize, 'time_index': time_index, 'scale': scale,
         'is_north_up': is_north_up, 'crop': crop, 'shape': shape, 'contrasts': contrasts, 'best_frame': best_frame,
-        'hmi_con_series': hmi_con_series, 'hmi_mag_series': hmi_mag_series, 'email': email
+        'hmi_con_series': hmi_con_series, 'hmi_mag_series': hmi_mag_series, 'email': email, 'mask': mask,
+        'fits_header': fits_header, 'fits_info': fits_info, 'fov_angle': fov,
+        'plot_sst_pointings_flag': plot_sst_pointings_flag,
+        'plot_hmi_ic_mag_flag': plot_hmi_ic_mag_flag, 'plot_crisp_image_flag': plot_crisp_image_flag,
+        'xrange': xrange, 'yrange': yrange
     }
-    return config
+    return config_dict
