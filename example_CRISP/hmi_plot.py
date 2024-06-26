@@ -10,14 +10,44 @@ from astropy.coordinates import SkyCoord, SkyOffsetFrame
 from enhance_data import run_enhance
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
+from sunpy.time import TimeRange
 # from matplotlib import cm
 # WARNING: FITSFixedWarning: 'datfix' made the change 'Set MJD-OBS to 59068.348353 from DATE-OBS'. [astropy.wcs.wcs]
 import warnings
 warnings.filterwarnings('ignore', category=astropy.wcs.FITSFixedWarning)
 
 
-def fetch_and_prepare_data(series, email, time_start, path='temp/'):
+def fetch_and_prepare_data_vso_client(series, time_start, path='temp/', debug=False):
+    # add a buffer of 45 seconds to the time_start to ensure the file is downloaded
+    time_range = TimeRange(time_start, 45 * u.second)
+    time_end = time_range.end.iso
+    if series == 'hmi.Ic_45s':
+        segment = 'continuum'
+        res = Fido.search(a.Time(time_start, time_end), a.Instrument.hmi, a.Physobs.intensity)
+    elif series == 'hmi.M_45s':
+        segment = 'magnetogram'
+        res = Fido.search(a.Time(time_start, time_end), a.Instrument.hmi, a.Physobs.los_magnetic_field)
+    if debug:
+        print(f'Query result: {res}')
+    series = series.replace('.', '_')
+    time_str = res['vso'][0]['Start Time'].iso.replace('-', '_').replace(':', '_').replace(' ', '_')[:-4] + '_tai'
+    file_path_expected = f'{path}{series.casefold()}_{time_str}_{segment}.fits'
+    if not os.path.exists(file_path_expected):
+        files = Fido.fetch(res['vso'][0], path=path, overwrite=False)
+        if debug:
+            print(f'File downloaded: {files}')
+        file_path = files[0]
+        # rename the file as per the expected name
+        os.rename(file_path, file_path_expected)  # file is downloaded with a slightly different timestamp (why?)
+    else:
+        print(f'File already exists: {file_path_expected}')
+    return file_path_expected
+
+
+def fetch_and_prepare_data(series, email, time_start, path='temp/', debug=False):
     res = Fido.search(a.Time(time_start, time_start), a.jsoc.Series(series), a.jsoc.Notify(email))
+    if debug:
+        print(f'Query result: {res}')
     # check if the file already exists else download it
     time_str = res['jsoc'][0]['T_REC'].replace(':', '').replace('.', '')
     if series == 'hmi.Ic_45s':
@@ -27,7 +57,8 @@ def fetch_and_prepare_data(series, email, time_start, path='temp/'):
     file_path = f'{path}{series.casefold()}.{time_str}.2.{segment}.fits'
     if not os.path.exists(file_path):
         files = Fido.fetch(res, path=path, overwrite=False)
-        print(f'File downloaded: {files}')
+        if debug:
+            print(f'File downloaded: {files}')
         file_path = files[0]
     else:
         print(f'File already exists: {file_path}')
@@ -47,8 +78,18 @@ def read_fits(file):
     return sunpy.map.Map(data, wcs).rotate()
 
 
-def plot_submaps(map1, map2, bottom_left, top_right, center_coord=None, draw_circle=False, radius=87,
-                 draw_rectangle=False, height=56, width=56, rot_fov=0, figsize=(16, 8)):
+def plot_submaps(map1, map2, bottom_left, top_right, center_coord, shape, rot_fov=0, figsize=(16, 8)):
+
+    if shape[0] == 'circle':
+        draw_rectangle = False
+        draw_circle = True
+        radius = shape[1]
+    else:
+        draw_rectangle = True
+        draw_circle = False
+        width = shape[1]
+        height = shape[2]
+
     submap1 = map1.submap(bottom_left, top_right=top_right)
     submap2 = map2.submap(bottom_left, top_right=top_right)
 
@@ -114,12 +155,22 @@ def plot_submaps(map1, map2, bottom_left, top_right, center_coord=None, draw_cir
     plt.show()
 
 
-def plot_hmi_ic_mag(tstart, ic_series, mag_series, email, x1, x2, y1, y2, draw_circle=False, radius=87,
-                    draw_rectangle=False, height=56, width=56, rot_fov=0, save_dir='temp/', enhance_ic=False,
-                    enhance_m=False, figsize=(16, 8), overwrite=False, buffer=0):
+def plot_hmi_ic_mag(tstart, ic_series, mag_series, email, x1, x2, y1, y2, save_dir='.', enhance_ic=False,
+                    enhance_m=False, figsize=(16, 8), overwrite=False, is_north_up=True,
+                    fov_angle=0, shape=['circle', 87], buffer=5):
 
-    ic_file = fetch_and_prepare_data(ic_series, email, tstart, path=save_dir)
-    blos_file = fetch_and_prepare_data(mag_series, email, tstart, path=save_dir)
+    if is_north_up:
+        rot_fov = 0
+    else:
+        rot_fov = fov_angle
+        buffer = 15
+
+    if len(email) == 0:
+        ic_file = fetch_and_prepare_data_vso_client(ic_series, tstart, path=save_dir)
+        blos_file = fetch_and_prepare_data_vso_client(mag_series, tstart, path=save_dir)
+    else:
+        ic_file = fetch_and_prepare_data(ic_series, email, tstart, path=save_dir)
+        blos_file = fetch_and_prepare_data(mag_series, email, tstart, path=save_dir)
 
     if enhance_ic or enhance_m:
         python_path = "/mn/stornext/d9/data/avijeetp/envs/enhance/bin/python"
@@ -155,14 +206,17 @@ def plot_hmi_ic_mag(tstart, ic_series, mag_series, email, x1, x2, y1, y2, draw_c
     top_right = SkyCoord(x2 * u.arcsec, y2 * u.arcsec, frame=ic_map.coordinate_frame)
     bottom_left = SkyCoord(x1 * u.arcsec, y1 * u.arcsec, frame=ic_map.coordinate_frame)
 
-    plot_submaps(ic_map, blos_map, bottom_left, top_right, center_coord,
-                 draw_circle, radius, draw_rectangle, height, width, rot_fov, figsize=figsize)
+    plot_submaps(ic_map, blos_map, bottom_left, top_right, center_coord, shape, rot_fov, figsize=figsize)
 
 
-def plot_sst_pointings(tstart, ic_series, hplnt, hpltt,
-                       figsize=(8, 8), email='avijeet.prasad@astro.uio.no', save_dir='temp/'):
+def plot_sst_pointings(tstart, ic_series, hplnt, hpltt, email,
+                       figsize=(8, 8), save_dir='temp/'):
 
-    ic_file = fetch_and_prepare_data(ic_series, email, tstart, path=save_dir)
+    if len(email) == 0:
+        ic_file = fetch_and_prepare_data_vso_client(ic_series, tstart, path=save_dir)
+    else:
+        ic_file = fetch_and_prepare_data(ic_series, email, tstart, path=save_dir)
+
     ic_map = read_fits(ic_file)
 
     x1 = np.min(hplnt[:, 0])
