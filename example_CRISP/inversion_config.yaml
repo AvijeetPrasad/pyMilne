@@ -1,0 +1,45 @@
+# Decide to work in float32 or float64
+dtype: float64
+
+# Decide the number of threads to use
+nthreads: 96
+
+# Noise level from observations
+sigma_strength: 0.005
+
+# Factor to divide the noise level to force better fitting in Stokes I, Q, U, V
+sigma_list: [1, 9.0, 9.0, 4.0]
+
+# Etalon error (fixes the fact that beam is not straight). Default is -0.001 for the 6100-6300 A range
+erh: -0.001
+
+# Initial model parameters for the inversion: [B, gamma, phi, theta, vlos, ddop, aa, S0, S1]
+init_model: [1500, 2.2, 1.0, -0.5, 0.035, 50.0, 0.1, 0.24, 0.7]
+
+# Randomizations of the first run (first inversion from initial model, rest are perturbations of it)
+nRandom1: 6
+# Number of iterations for the first inversion
+nIter1: 100
+# Chi2 threshold for the first inversion
+chi2_thres1: 1
+
+# Size of the median filter based on the chi2 mean threshold from the first inversion result
+median_filter_chi2_mean_thres: [20, 50] # chi2 mean thresholds
+median_filter_size: [11, 21, 31] # median filter sizes
+
+# Randomizations of the second run (perturbations of the first inversion result)
+nRandom2: 2
+nIter2: 200
+chi2_thres2: 1
+
+# Spatially regularized inversion. Parameters:
+nIter3: 200
+chi2_thres3: 1
+alpha_strength: 30.0 # Strength factor of the regularization
+alpha_list: [2, 0.5, 2, 0.01, 0.1, 0.01, 0.1, 0.01, 0.01] # Individual regularization factors for each parameter
+
+# Replace NaN values for the masked pixels after the inversion results
+nan_mask_replacements: [0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+# Show intermediate plots
+show_intermediate_plots: True
