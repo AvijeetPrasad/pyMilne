@@ -209,7 +209,7 @@ def load_fits_data(name, ext=0):
     return data
 
 
-def load_fits_header(name):
+def load_fits_header(name, out_dict=True):
     """
     Load the header of a FITS file.
 
@@ -222,7 +222,8 @@ def load_fits_header(name):
     with fits.open(name, 'readonly') as hdulist:
         header = hdulist[0].header
     # convert the header to a dictionary
-    header = dict(header)
+    if out_dict:
+        header = dict(header)
     return header
 
 
@@ -248,7 +249,7 @@ def save_fits(data, header, filename, inv_comment=None, overwrite=False):
     else:
         hdu = fits.PrimaryHDU(data, header=header)
         hdu.writeto(filename, overwrite=True)
-        print(f"File {filename} saved successfully.")
+        print(f"File saved: {filename}")
 
 
 def get_wavelengths(name):
@@ -280,7 +281,8 @@ def find_grid(w, dw, extra=5):
     return iw, idx
 
 
-def plot_inversion_output(mos, mask=None, scale=0.059, save_fig=False, figsize=(30, 30)):
+def plot_inversion_output(mos, mask=None, scale=0.059, save_fig=False, figsize=(30, 30),
+                          apply_median_filter=False, filter_size=2, filter_index=None):
     """
     Plots various components of the `mos` array, applying a mask and scaling.
 
@@ -320,6 +322,8 @@ def plot_inversion_output(mos, mask=None, scale=0.059, save_fig=False, figsize=(
 
     # Plot each component of `mos2`
     for ii in range(9):
+        if apply_median_filter and ii in filter_index:
+            mos2[:, :, ii] = median_filter(mos2[:, :, ii], size=(filter_size, filter_size))
         if ii in [1, 2]:
             a = ax1[ii].imshow(im.histo_opt(mos2[:, :, ii]), cmap=cmaps[ii], vmin=0, vmax=np.pi,
                                interpolation='nearest', extent=extent, aspect='equal', origin='lower')
@@ -529,7 +533,7 @@ def interactive_fov_selection(crisp_im, scale=1):
     return xorg, yorg, xsize, ysize
 
 
-def plot_mag(mos, mask, scale=0.058, save_fig=False, v1min=None, v1max=None, v2max=None, figsize=(20, 10)):
+def plot_mag(mos, mask=None, scale=0.058, save_fig=False, v1min=None, v1max=None, v2max=None, figsize=(20, 10)):
     mos2 = copy.deepcopy(mos)
     nx, ny = mos2[:, :, 0].shape
     extent = np.float32((0, nx, 0, ny)) * scale
@@ -538,7 +542,8 @@ def plot_mag(mos, mask, scale=0.058, save_fig=False, v1min=None, v1max=None, v2m
 
     # Blos map
     Blos = mos2[:, :, 0] * np.cos(mos2[:, :, 1])
-    Blos[mask] = 1.01 * np.percentile(Blos[~mask], 99)
+    if mask is not None:
+        Blos[mask] = 1.01 * np.percentile(Blos[~mask], 99)
     if v1min is None:
         v1min = np.percentile(Blos, 1)
     if v1max is None:
@@ -552,7 +557,8 @@ def plot_mag(mos, mask, scale=0.058, save_fig=False, v1min=None, v1max=None, v2m
 
     # Bhor map
     Bhor = mos2[:, :, 0] * np.sin(mos2[:, :, 1])
-    Bhor[mask] = 1.01 * np.percentile(Bhor[~mask], 99)
+    if mask is not None:
+        Bhor[mask] = 1.01 * np.percentile(Bhor[~mask], 99)
     if v2max is None:
         v2max = np.percentile(Bhor, 95)
     im2 = ax2[1].imshow(Bhor, cmap='Greys_r', interpolation='nearest',
@@ -651,7 +657,7 @@ def get_fits_info(filename, verbose=False, pprint=True):
     # start_time_calculated = time2_iso[0, 0]
     # end_time_calculated = time2_iso[-1, -1]
     # center_time_calculated = time2_iso[nt // 2, ns // 2]
-    center_wavelength = wave2[0, nw // 2]
+    central_wavelength = wave2[0, nw // 2]
     all_wavelengths = wave2[0]
 
     # Convert the times to the desired format without digits after seconds
@@ -692,7 +698,7 @@ def get_fits_info(filename, verbose=False, pprint=True):
 
         # Print the center wavelength and all wavelengths
         print('\nWavelength Information:')
-        print(f'  Center Wavelength (Angstroms): {center_wavelength:.2f}')
+        print(f'  Central Wavelength (Angstroms): {central_wavelength:.2f}')
         if verbose:
             print(f'  All Wavelengths   (Angstroms): {np.round(all_wavelengths, 4)}')
 
@@ -721,7 +727,7 @@ def get_fits_info(filename, verbose=False, pprint=True):
         "end_time_obs": end_time_obs,
         "avg_time_obs": avg_time_obs,
         "all_start_times": all_start_times,
-        "center_wavelength": center_wavelength,
+        "central_wavelength": central_wavelength,
         "all_wavelengths": all_wavelengths,
         "R_Sun_arcsec": R_Sun_arcsec,
         "rho": rho,
@@ -932,7 +938,8 @@ def check_input_config(config, confirm=True, pprint=True):
         'email': '',
         'plot_sst_pointings': False,
         'plot_hmi_ic_mag': False,
-        'plot_crisp_image': False
+        'plot_crisp_image': False,
+        'verbose': True
     }
 
     # Update config with default values if keys are missing
@@ -978,9 +985,9 @@ def check_input_config(config, confirm=True, pprint=True):
     time_index = config['tt']
     scale = config['scale']
     is_north_up = config['is_north_up']
-
     shape = config['shape']
     save_dir = config['save_dir']
+    verbose = config['verbose']
     hmi_con_series = config['hmi_con_series']
     hmi_mag_series = config['hmi_mag_series']
     email = config['email']
@@ -1039,6 +1046,6 @@ def check_input_config(config, confirm=True, pprint=True):
         'fits_header': fits_header, 'fits_info': fits_info, 'fov_angle': fov,
         'plot_sst_pointings_flag': plot_sst_pointings_flag,
         'plot_hmi_ic_mag_flag': plot_hmi_ic_mag_flag, 'plot_crisp_image_flag': plot_crisp_image_flag,
-        'xrange': xrange, 'yrange': yrange
+        'xrange': xrange, 'yrange': yrange, 'verbose': verbose
     }
     return config_dict
