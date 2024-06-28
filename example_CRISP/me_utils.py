@@ -104,6 +104,7 @@ def init_me_model(ll, sigma_strength=0.005, sigma_list=[1, 9.0, 9.0, 4.0], erh=-
     # give them more weight by lowering the noise estimate.
     sig = np.zeros((4, iw.size), dtype=dtype) + 1.e32
     sig[:, idx] = sigma_strength
+    sig[0, idx] /= sigma_list[0]
     sig[1, idx] /= sigma_list[1]
     sig[2, idx] /= sigma_list[2]
     sig[3, idx] /= sigma_list[3]
@@ -313,3 +314,27 @@ def correct_velocities_for_cavity_error(mo, cmap, l0, global_offset=0.0):
         mos[:, :, 3] += global_offset
 
     return mos
+
+
+def apply_mask_to_model(model, mask, nan_mask_replacements=[0, 0, 0, 0, 0, 0, 0, 0, 0]):
+    """
+    Apply a mask to the model parameters array and replace masked values.
+
+    Parameters:
+    model : np.ndarray
+        Corrected model parameters array with shape (ny, nx, 9).
+    mask : np.ndarray
+        Mask array to apply to the model parameters.
+    nan_mask_replacements : list or array
+        Replacement values for each parameter in the model.
+
+    Returns:
+    masked_model : np.ndarray
+        Model parameters array with masked values replaced.
+    """
+    masked_model = np.zeros_like(model)
+    for i in range(model.shape[2]):
+        masked_model[:, :, i] = iu.masked_data(
+            model[:, :, i], mask, replace_val=nan_mask_replacements[i], fix_inf=True, fix_nan=True)
+
+    return masked_model
