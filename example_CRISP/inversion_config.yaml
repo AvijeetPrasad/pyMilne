@@ -13,7 +13,7 @@ sigma_list: [1, 9.0, 9.0, 4.0]
 # Etalon error (fixes the fact that beam is not straight). Default is -0.001 for the 6100-6300 A range
 erh: -0.001
 
-# Initial model parameters for the inversion: [B, gamma, phi, theta, vlos, ddop, aa, S0, S1]
+# Initial model parameters for the inversion: [|B| [G], inc [rad], azi [rad], vlos [km/s], vDop [A], eta_l, damp, S0, S1]
 init_model_params: [1500, 2.2, 1.0, -0.5, 0.035, 50.0, 0.1, 0.24, 0.7]
 
 # Randomizations of the first run (first inversion from initial model, rest are perturbations of it)
@@ -41,5 +41,3 @@ alpha_list: [2, 0.5, 2, 0.01, 0.1, 0.01, 0.1, 0.01, 0.01] # Individual regulariz
 # Replace NaN values for the masked pixels after the inversion results
 nan_mask_replacements: [0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-# Show intermediate plots
-verbose: True

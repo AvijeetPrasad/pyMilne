@@ -1,11 +1,11 @@
 # Data directory
-data_dir: "/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/"
+data_dir: "./"
 
 # CRISP image file
 crisp_im: "nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits"
 
-# Crop flag
-crop: false
+# Crop flag to crop the CRISP image and run inversion only for a smaller region of interest
+crop: true
 check_crop: false  # Interactively select the cropping region
 
 # Origin coordinates after cropping for the region of interest
@@ -46,6 +46,16 @@ plot_hmi_ic_mag_flag: false
 
 # Plot SST CRISP image to compare with HMI? To plot SST CRISP image for quick comparison with HMI Ic and Mag
 plot_crisp_image_flag: false
+
+# Show intermediate plots during inversion
+verbose: true
+
+# Save the inversion results as fits
+inversion_save_fits_list: ["Bstr", "Binc", "Bazi", "Vlos"]
+inversion_save_errors: true
+
+# Save inversion results as LP cubes
+inversion_save_lp_list: ["Blos", "Bhor"]
 
 
 
