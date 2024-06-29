@@ -1,0 +1,20 @@
+astropy
+clangxx_osx-64  # For OSX only
+cython
+eigen
+einops
+fftw
+flake8
+# gxx_linux-64  # For Linux only
+ipykernel
+ipympl
+ipython
+joblib
+jupyter
+llvm-openmp  # For OSX only
+matplotlib
+numpy
+scipy
+setuptools
+sunpy
+uncertainties
