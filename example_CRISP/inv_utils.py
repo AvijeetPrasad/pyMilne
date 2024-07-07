@@ -926,6 +926,8 @@ def load_yaml_config(file_path):
 def check_input_config(config, confirm=True, pprint=True):
     # Set default values for parameters
     defaults = {
+        'time_index': 0,
+        'best_frame_index': 0,
         'xorg': 0,
         'yorg': 0,
         'scale': 0.044,
@@ -965,9 +967,9 @@ def check_input_config(config, confirm=True, pprint=True):
 
     # Get the time index with the best contrast
     data_cube, mask = load_crisp_fits_all_timesteps(crisp_im)
-    best_frame, best_index, contrasts = best_contrast_frame(data_cube, mask=mask)
-    # set the best_index as default time index in config
-    config.setdefault('tt', best_index)
+    best_frame, best_frame_index, contrasts = best_contrast_frame(data_cube, mask=mask)
+    # update the best_frame_indes in config
+    config.setdefault('best_frame_index', best_frame_index)
     # Load FITS header to get xsize and ysize if not provided
     fits_header = load_fits_header(crisp_im)
     config.setdefault('xsize', fits_header['NAXIS1'])
@@ -982,7 +984,7 @@ def check_input_config(config, confirm=True, pprint=True):
         xsize = config['xsize']
         yorg = config['yorg']
         ysize = config['ysize']
-    time_index = config['tt']
+    time_index = config['time_index']
     scale = config['scale']
     is_north_up = config['is_north_up']
     shape = config['shape']
@@ -1006,6 +1008,7 @@ def check_input_config(config, confirm=True, pprint=True):
         print(f"Save directory: {save_dir}")
         print(f"CRISP image   : {crisp_im}")
         print(f"Time index    : {time_index}")
+        print(f"Best frame    : {best_frame_index}")
         print(f"Scale         : {scale}")
         print(f"Is North Up   : {is_north_up}")
         print(f"Shape         : {shape}")
@@ -1027,7 +1030,7 @@ def check_input_config(config, confirm=True, pprint=True):
 
     # Plot the contrast as a function of the time index
     plot_contrast(contrasts, figsize=(6, 3))
-    plot_image(best_frame, title=f'Frame: {time_index}', cmap='gray', scale=scale, figsize=(6, 6),
+    plot_image(best_frame, title=f'Frame: {best_frame_index}', cmap='gray', scale=scale, figsize=(6, 6),
                show_roi=True, xrange=xrange, yrange=yrange)
 
     # Confirm the parameters from the user
@@ -1042,6 +1045,7 @@ def check_input_config(config, confirm=True, pprint=True):
         'data_dir': data_dir, 'crisp_im': crisp_im, 'save_dir': save_dir,
         'xorg': xorg, 'xsize': xsize, 'yorg': yorg, 'ysize': ysize, 'time_index': time_index, 'scale': scale,
         'is_north_up': is_north_up, 'crop': crop, 'shape': shape, 'contrasts': contrasts, 'best_frame': best_frame,
+        'best_frame_index': best_frame_index,
         'hmi_con_series': hmi_con_series, 'hmi_mag_series': hmi_mag_series, 'email': email, 'mask': mask,
         'fits_header': fits_header, 'fits_info': fits_info, 'fov_angle': fov,
         'plot_sst_pointings_flag': plot_sst_pointings_flag,

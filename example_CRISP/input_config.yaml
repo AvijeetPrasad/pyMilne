@@ -1,5 +1,5 @@
 # Data directory
-data_dir: "./"
+data_dir: "/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/"
 
 # CRISP image file
 crisp_im: "nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits"
@@ -48,7 +48,7 @@ plot_hmi_ic_mag_flag: false
 plot_crisp_image_flag: false
 
 # Show intermediate plots during inversion
-verbose: true
+verbose: false
 
 # Save the inversion results as fits
 inversion_save_fits_list: ["Bstr", "Binc", "Bazi", "Vlos"]
