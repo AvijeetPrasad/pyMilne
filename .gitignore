@@ -6,6 +6,7 @@ __pycache__/
 example_CRISP/fig_results.pdf
 .vscode/
 .env
+.env*
 example_CRISP/temp
 *.fcube
 *.fits 
