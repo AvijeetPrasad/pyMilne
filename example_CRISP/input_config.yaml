@@ -52,11 +52,11 @@ verbose: false
 
 # Save the inversion results as fits
 inversion_save_fits_list: ["Bstr", "Binc", "Bazi", "Vlos"]
-inversion_save_errors: true
+inversion_save_errors_fits: true
 
 # Save inversion results as LP cubes
-inversion_save_lp_list: ["Blos", "Bhor"]
-
+inversion_save_lp_list: ["Blos", "Bhor", "Bazi", "Vlos"]
+inversion_save_errors_lp: true
 
 
 

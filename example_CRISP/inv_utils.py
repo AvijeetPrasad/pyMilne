@@ -18,6 +18,7 @@ import sys
 import re
 import yaml
 from lp_scripts.get_fov_angle import fov_angle
+import time
 
 
 class container:
@@ -926,8 +927,6 @@ def load_yaml_config(file_path):
 def check_input_config(config, confirm=True, pprint=True):
     # Set default values for parameters
     defaults = {
-        'time_index': 0,
-        'best_frame_index': 0,
         'xorg': 0,
         'yorg': 0,
         'scale': 0.044,
@@ -941,7 +940,11 @@ def check_input_config(config, confirm=True, pprint=True):
         'plot_sst_pointings': False,
         'plot_hmi_ic_mag': False,
         'plot_crisp_image': False,
-        'verbose': True
+        'verbose': True,
+        'inversion_save_fits_list': ["Bstr", "Binc", "Bazi", "Vlos"],
+        'inversion_save_errors_fits': False,
+        'inversion_save_lp_list': ["Blos", "Bhor", "Bazi", "Vlos"],
+        'inversion_save_errors_lp': False
     }
 
     # Update config with default values if keys are missing
@@ -970,6 +973,8 @@ def check_input_config(config, confirm=True, pprint=True):
     best_frame, best_frame_index, contrasts = best_contrast_frame(data_cube, mask=mask)
     # update the best_frame_indes in config
     config.setdefault('best_frame_index', best_frame_index)
+    config.setdefault('time_index', best_frame_index)
+
     # Load FITS header to get xsize and ysize if not provided
     fits_header = load_fits_header(crisp_im)
     config.setdefault('xsize', fits_header['NAXIS1'])
@@ -984,6 +989,7 @@ def check_input_config(config, confirm=True, pprint=True):
         xsize = config['xsize']
         yorg = config['yorg']
         ysize = config['ysize']
+
     time_index = config['time_index']
     scale = config['scale']
     is_north_up = config['is_north_up']
@@ -996,6 +1002,11 @@ def check_input_config(config, confirm=True, pprint=True):
     plot_sst_pointings_flag = config['plot_sst_pointings_flag']
     plot_hmi_ic_mag_flag = config['plot_hmi_ic_mag_flag']
     plot_crisp_image_flag = config['plot_crisp_image_flag']
+
+    inversion_save_fits_list = config['inversion_save_fits_list']
+    inversion_save_errors_fits = config['inversion_save_errors_fits']
+    inversion_save_lp_list = config['inversion_save_lp_list']
+    inversion_save_errors_lp = config['inversion_save_errors_lp']
 
     xrange = [xorg, xorg + xsize]
     yrange = [yorg, yorg + ysize]
@@ -1020,6 +1031,10 @@ def check_input_config(config, confirm=True, pprint=True):
         print(f"xrange        : {xrange}")
         print(f"yrange        : {yrange}")
         print(f"Email         : {email}")
+        print(f"Inversion Save FITS List: {inversion_save_fits_list}")
+        print(f"Inversion Save Errors FITS: {inversion_save_errors_fits}")
+        print(f"Inversion Save LP List: {inversion_save_lp_list}")
+        print(f"Inversion Save Errors LP: {inversion_save_errors_lp}")
 
     print("\n\nObservation Details:")
     print("=" * 64)
@@ -1050,6 +1065,70 @@ def check_input_config(config, confirm=True, pprint=True):
         'fits_header': fits_header, 'fits_info': fits_info, 'fov_angle': fov,
         'plot_sst_pointings_flag': plot_sst_pointings_flag,
         'plot_hmi_ic_mag_flag': plot_hmi_ic_mag_flag, 'plot_crisp_image_flag': plot_crisp_image_flag,
-        'xrange': xrange, 'yrange': yrange, 'verbose': verbose
+        'xrange': xrange, 'yrange': yrange, 'verbose': verbose,
+        'inversion_save_fits_list': inversion_save_fits_list,
+        'inversion_save_errors_fits': inversion_save_errors_fits,
+        'inversion_save_lp_list': inversion_save_lp_list,
+        'inversion_save_errors_lp': inversion_save_errors_lp
     }
     return config_dict
+
+
+def convert_numpy_types(data):
+    """
+    Recursively convert NumPy scalars to native Python types in a dictionary.
+
+    Parameters:
+    data (dict): The configuration dictionary to convert.
+
+    Returns:
+    dict: The converted configuration dictionary.
+    """
+    if isinstance(data, dict):
+        return {key: convert_numpy_types(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [convert_numpy_types(element) for element in data]
+    elif isinstance(data, np.generic):
+        return data.item()
+    elif isinstance(data, np.ndarray):
+        return data.tolist()
+    else:
+        return data
+
+
+def save_yaml_config(config, filename, save_dir='.', overwrite=True, sort_keys=False, append_timestamp=True):
+    """
+    Save the configuration to a YAML file with keys in alphabetical order.
+
+    Parameters:
+    config (dict): The configuration dictionary to save.
+    save_dir (str): The directory where the configuration file will be saved.
+    overwrite (bool): Whether to overwrite the existing file. Default is True.
+    """
+    # Convert NumPy types to native Python types
+    config = convert_numpy_types(config)
+
+    # Determine the file path
+    file_path = os.path.join(save_dir, filename)
+
+    if append_timestamp:
+        # append a unix timestamp to file basename
+        file_base_name = os.path.basename(file_path)
+        file_base_name = file_base_name.split('.')[0]
+        unix_timestamp = int(time.time())
+        file_base_name = f"{file_base_name}_{unix_timestamp}.yaml"
+        file_path = os.path.join(save_dir, file_base_name)
+
+    # Check if file exists and handle overwrite
+    if os.path.exists(file_path) and not overwrite:
+        print(f"File {file_path} already exists and overwrite is set to False.")
+        return
+    elif os.path.exists(file_path) and overwrite:
+        os.remove(file_path)
+        print(f"Existing file {file_path} has been overwritten.")
+
+    # Save the configuration to a YAML file
+    with open(file_path, 'w') as file:
+        yaml.dump(config, file, sort_keys=False, default_flow_style=None)
+
+    print(f"Full config saved to: {file_path}")
