@@ -228,7 +228,7 @@ def load_fits_header(name, out_dict=True):
     return header
 
 
-def save_fits(data, header, filename, inv_comment=None, overwrite=False):
+def save_fits(data, header, filename, inv_comment=None, overwrite=False, verbose=True):
     """
     Save a FITS file with the specified data and header, including an optional comment about the data.
 
@@ -250,7 +250,8 @@ def save_fits(data, header, filename, inv_comment=None, overwrite=False):
     else:
         hdu = fits.PrimaryHDU(data, header=header)
         hdu.writeto(filename, overwrite=True)
-        print(f"File saved: {filename}")
+        if verbose:
+            print(f"File saved: {filename} with type: {type(data)} and shape: {data.shape}")
 
 
 def get_wavelengths(name):
@@ -350,7 +351,10 @@ def plot_inversion_output(mos, mask=None, scale=0.059, save_fig=False, figsize=(
             for label in (ax[jj, ii].get_xticklabels() + ax[jj, ii].get_yticklabels()):
                 label.set_fontsize(16)  # Adjust the font size for tick labels
 
-    fig.tight_layout()
+    try:
+        fig.tight_layout()
+    except ValueError:
+        pass
 
     if save_fig:
         print("Saving figure with results -> fig_results.pdf")
@@ -1132,3 +1136,10 @@ def save_yaml_config(config, filename, save_dir='.', overwrite=True, sort_keys=F
         yaml.dump(config, file, sort_keys=False, default_flow_style=None)
 
     print(f"Full config saved to: {file_path}")
+
+
+def save_fits_header_as_text(fits_header, filename, save_dir='.'):
+    with open(f'{save_dir}/{filename}', 'w') as f:
+        for key, value in fits_header.items():
+            f.write(f'{key}: {value}\n')
+    print('fits_header.txt saved successfully')

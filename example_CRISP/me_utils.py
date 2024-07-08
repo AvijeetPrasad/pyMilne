@@ -308,7 +308,10 @@ def correct_velocities_for_cavity_error(mo, cmap, l0, global_offset=0.0):
     mos : np.ndarray
         Corrected model parameters array with shape (ny, nx, 9).
     """
-    mos = np.squeeze(mo)  # Remove the singleton dimension in the model
+    if mo.ndim == 4:
+        mos = np.squeeze(mo)  # Remove the singleton dimension in the model
+    else:
+        mos = mo
     mos[:, :, 3] += (cmap * 10) / l0 * 2.9e5
     if global_offset != 0.0:
         mos[:, :, 3] += global_offset
