@@ -1,8 +1,13 @@
 # Data directory
-data_dir: "/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/"
-
+# data_dir: "/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/"
 # CRISP image file
-crisp_im: "nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits"
+# crisp_im: "nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits"
+
+# # Data directory
+# data_dir: '/mn/stornext/d18/lapalma/reduc/2021/2021-06-22/CRISP/cubes_nb/'
+# # CRISP image file
+# crisp_im: 'nb_6173_2021-06-22T08:17:48_scans=0-162_stokes_corrected_im.fits'
+
 
 # Crop flag to crop the CRISP image and run inversion only for a smaller region of interest
 crop: true
@@ -11,13 +16,19 @@ check_crop: false  # Interactively select the cropping region
 # Origin coordinates after cropping for the region of interest
 xorg: 200  # Origin x-coordinate
 yorg: 360  # Origin y-coordinate
-
 # Size
 xsize: 480  # Size along x-axis after cropping
 ysize: 400  # Size along y-axis after cropping
 
+# # # Origin coordinates after cropping for the region of interest
+# xorg: 200  # Origin x-coordinate
+# yorg: 200  # Origin y-coordinate
+# # Size
+# xsize: 200  # Size along x-axis after cropping
+# ysize: 200  # Size along y-axis after cropping
+
 # Time index
-time_index: 0
+# time_index: 0
 
 # Scale in arcsec/pixel
 scale: 0.058
@@ -36,7 +47,7 @@ hmi_mag_series: "hmi.M_45s"
 email: ""
 
 # Save directory for saving temporary files and final outputs
-save_dir: "temp/"
+save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2021-06-22/"
 
 # Plot SST pointings? To plot SST pointings for the full observation over HMI Ic
 plot_sst_pointings_flag: false
