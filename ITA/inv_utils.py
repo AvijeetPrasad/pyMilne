@@ -1158,7 +1158,7 @@ def save_fits_header_as_text(fits_header, filename, save_dir='.'):
     print('fits_header.txt saved successfully')
 
 
-def calculate_nthreads(usage_fraction=1, verbose=True):
+def get_nthreads(usage_fraction=1, verbose=True):
     """
     Calculate the number of threads to use based on the physical cores and
     desired usage fraction.
