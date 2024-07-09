@@ -45,14 +45,29 @@ def print_pythonpath(verbose=False):
 
 def safe_import(module_name, attribute_name=None):
     """
-    Safely import a module or an attribute from a module and handle ImportError if the module is not found.
+    Safely import a module or an attribute from a module and handle ImportError
+    if the module is not found.
 
     Parameters:
     - module_name (str): The name of the module to import.
-    - attribute_name (str or None): The name of the attribute to import from the module.
+    - attribute_name (str or None): The name of the attribute to import from
+      the module.
 
     Returns:
-    - module or attribute: The imported module or attribute if successful, None otherwise.
+    - module or attribute: The imported module or attribute if successful,
+      None otherwise.
+
+    Examples:
+    ---------
+    # Example 1: Importing a module
+    numpy_module = safe_import('numpy')
+    if numpy_module:
+        print("Successfully imported numpy")
+
+    # Example 2: Importing an attribute from a module
+    np_array = safe_import('numpy', 'array')
+    if np_array:
+        print("Successfully imported array from numpy")
     """
     try:
         if attribute_name:
