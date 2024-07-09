@@ -10,15 +10,18 @@ from astropy.coordinates import get_sun
 from astropy.constants import R_sun
 import astropy.units as u
 from scipy.ndimage import rotate, median_filter
-from helita.io import lp
 from joblib import Parallel, delayed
 import os
 import json
 import sys
 import re
 import yaml
-from lp_scripts.get_fov_angle import fov_angle
 import time
+import psutil
+# Use the safe_import function to import custom modules safely
+from load_env_and_set_pythonpath import safe_import
+lp = safe_import('helita.io', 'lp')
+fov_angle = safe_import('lp_scripts.get_fov_angle', 'fov_angle')
 
 
 class container:
@@ -284,7 +287,8 @@ def find_grid(w, dw, extra=5):
 
 
 def plot_inversion_output(mos, mask=None, scale=0.059, save_fig=False, figsize=(30, 30),
-                          apply_median_filter=False, filter_size=2, filter_index=None):
+                          apply_median_filter=False, filter_size=2, filter_index=None,
+                          save_dir='.', figname='fig_results.pdf', show_fig=True):
     """
     Plots various components of the `mos` array, applying a mask and scaling.
 
@@ -357,9 +361,13 @@ def plot_inversion_output(mos, mask=None, scale=0.059, save_fig=False, figsize=(
         pass
 
     if save_fig:
-        print("Saving figure with results -> fig_results.pdf")
-        fig.savefig('fig_results.pdf', dpi=250, format='pdf')
-    plt.show()
+        fig_path = os.path.join(save_dir, figname)
+        print(f"Saving figure with results -> {fig_path}")
+        fig.savefig(fig_path, dpi=250, format='pdf')
+    if show_fig:
+        plt.show()
+    else:
+        plt.close(fig)
 
 
 def masked_mean(data, mask):
@@ -538,7 +546,8 @@ def interactive_fov_selection(crisp_im, scale=1):
     return xorg, yorg, xsize, ysize
 
 
-def plot_mag(mos, mask=None, scale=0.058, save_fig=False, v1min=None, v1max=None, v2max=None, figsize=(20, 10)):
+def plot_mag(mos, mask=None, scale=0.058, save_fig=False, v1min=None, v1max=None, v2max=None, figsize=(20, 10),
+             save_dir='.', figname='mag.pdf', show_fig=True):
     mos2 = copy.deepcopy(mos)
     nx, ny = mos2[:, :, 0].shape
     extent = np.float32((0, nx, 0, ny)) * scale
@@ -576,9 +585,13 @@ def plot_mag(mos, mask=None, scale=0.058, save_fig=False, v1min=None, v1max=None
     fig2.tight_layout()
 
     if save_fig:
-        print("Saving figure with results -> fig_results2.pdf")
-        fig2.savefig('fig_results2.pdf', dpi=250, format='pdf')
-    plt.show()
+        fig_path = os.path.join(save_dir, figname)
+        print(f"Saving figure with results -> {fig_path}")
+        fig2.savefig(fig_path, dpi=250, format='pdf')
+    if show_fig:
+        plt.show()
+    else:
+        plt.close(fig2)
 
 
 def get_fits_info(filename, verbose=False, pprint=True):
@@ -1143,3 +1156,25 @@ def save_fits_header_as_text(fits_header, filename, save_dir='.'):
         for key, value in fits_header.items():
             f.write(f'{key}: {value}\n')
     print('fits_header.txt saved successfully')
+
+
+def calculate_nthreads(usage_fraction=1, verbose=True):
+    """
+    Calculate the number of threads to use based on the physical cores and
+    desired usage fraction.
+
+    Parameters:
+    usage_fraction (float): Fraction of total physical cores to use (default is 0.9).
+
+    Returns:
+    int: Number of threads to use.
+    """
+    # Get the number of physical cores
+    physical_cores = psutil.cpu_count(logical=False)
+
+    # Calculate the number of threads to use
+    nthreads = int(usage_fraction * physical_cores)
+    if verbose:
+        print(f"Physical cores: {physical_cores}")
+        print(f"Using {usage_fraction:.0%} of physical cores: {nthreads} threads")
+    return nthreads
