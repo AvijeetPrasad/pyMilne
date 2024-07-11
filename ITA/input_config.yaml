@@ -21,14 +21,14 @@ check_crop: false  # Interactively select the cropping region
 # ysize: 400  # Size along y-axis after cropping
 
 # # Origin coordinates after cropping for the region of interest
-xorg: 200  # Origin x-coordinate
-yorg: 200  # Origin y-coordinate
+xorg: 280  # Origin x-coordinate
+yorg: 220  # Origin y-coordinate
 # Size
-xsize: 200  # Size along x-axis after cropping
-ysize: 200  # Size along y-axis after cropping
+xsize: 64  # Size along x-axis after cropping
+ysize: 64  # Size along y-axis after cropping
 
-# Time index
-# time_index: 0
+# Time range for the CRISP image in the format [start_time_index, end_time_index]
+time_range: [0, 1]
 
 # Scale in arcsec/pixel
 scale: 0.058
@@ -63,7 +63,10 @@ plot_crisp_image_flag: false
 verbose: false
 
 # Save the inversion results as fits
-inversion_save_fits_list: ["Bstr", "Binc", "Bazi", "Vlos"]
+# ["Bstr", "Binc", "Bazi", "Vlos", "Vdop", "etal", "damp", "S0", "S1", "Blos", "Bhor", "Nan_mask"]
+# ["Bstr_err", "Binc_err", "Bazi_err", "Vlos_err", "Vdop_err", "etal_err", "damp_err", "S0_err", "S1_err", "Blos_err", "Bhor_err", "Nan_mask"]
+
+inversion_save_fits_list: ["Bstr", "Binc", "Bazi", "Vlos", "Nan_mask"]
 inversion_save_errors_fits: true
 
 # Save inversion results as LP cubes
