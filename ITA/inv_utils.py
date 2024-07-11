@@ -953,6 +953,7 @@ def load_yaml_config(file_path):
 def check_input_config(config, confirm=True, pprint=True):
     # Set default values for parameters
     defaults = {
+        'time_range': 'best',
         'xorg': 0,
         'yorg': 0,
         'scale': 0.044,
@@ -999,7 +1000,30 @@ def check_input_config(config, confirm=True, pprint=True):
     best_frame, best_frame_index, contrasts = best_contrast_frame(data_cube, mask=mask)
     # update the best_frame_indes in config
     config.setdefault('best_frame_index', best_frame_index)
-    config.setdefault('time_index', best_frame_index)
+
+    # === Set the time range ===
+    # Check the input time_range is in the correct format
+    time_range_options = "[start_time_index, end_time_index], [start_time_index, end_time_index, step_size],\
+          'first', 'best, 'full'"
+    fits_info = get_fits_info(crisp_im, pprint=True)
+    nt = fits_info['nt']
+    time_range = config['time_range']
+
+    if time_range == 'best':
+        time_range = [best_frame_index]
+    elif time_range == 'first':
+        time_range = [0]
+    elif time_range == 'full':
+        time_range = [0, nt]
+    elif isinstance(time_range, list):
+        if len(time_range) == 2:
+            time_range = list(range(time_range[0], time_range[1]))
+        elif len(time_range) == 3:
+            time_range = list(range(time_range[0], time_range[1], time_range[2]))
+    else:
+        print("Error: Invalid time_range format")
+        print(f"Available options: {time_range_options}")
+        sys.exit(1)
 
     # Load FITS header to get xsize and ysize if not provided
     fits_header = load_fits_header(crisp_im)
@@ -1016,7 +1040,6 @@ def check_input_config(config, confirm=True, pprint=True):
         yorg = config['yorg']
         ysize = config['ysize']
 
-    time_index = config['time_index']
     scale = config['scale']
     is_north_up = config['is_north_up']
     shape = config['shape']
@@ -1037,8 +1060,6 @@ def check_input_config(config, confirm=True, pprint=True):
 
     inversion_out_list = ["Bstr", "Binc", "Bazi", "Vlos", "Vdop",
                           "etal", "damp", "S0", "S1", "Blos", "Bhor", "Nan_mask"]
-    inverstion_error_out_list = ["Bstr_err", "Binc_err", "Bazi_err", "Vlos_err", "Vdop_err",
-                                 "etal_err", "damp_err", "S0_err", "S1_err", "Blos_err", "Bhor_err", "Nan_mask"]
 
     # check if all the inversion_save_fits_list and inversion_save_lp_list are in the inversion_out_list
     for item in inversion_save_fits_list:
@@ -1052,20 +1073,6 @@ def check_input_config(config, confirm=True, pprint=True):
             print(f"Available items: {inversion_out_list}")
             sys.exit(1)
 
-    # check if all the inversion_save_errors_fits and inversion_save_errors_lp are in the inverstion_error_out_list
-    if inversion_save_errors_fits:
-        for item in inversion_save_errors_fits:
-            if item not in inverstion_error_out_list:
-                print(f"Error: {item} is not in the inverstion_error_out_list")
-                print(f"Available items: {inverstion_error_out_list}")
-                sys.exit(1)
-    if inversion_save_errors_lp:
-        for item in inversion_save_errors_lp:
-            if item not in inverstion_error_out_list:
-                print(f"Error: {item} is not in the inverstion_error_out_list")
-                print(f"Available items: {inverstion_error_out_list}")
-                sys.exit(1)
-
     xrange = [xorg, xorg + xsize]
     yrange = [yorg, yorg + ysize]
 
@@ -1076,7 +1083,7 @@ def check_input_config(config, confirm=True, pprint=True):
         print(f"Data directory: {data_dir}")
         print(f"Save directory: {save_dir}")
         print(f"CRISP image   : {crisp_im}")
-        print(f"Time index    : {time_index}")
+        print(f"Time range    : {time_range}")
         print(f"Best frame    : {best_frame_index}")
         print(f"Scale         : {scale}")
         print(f"Is North Up   : {is_north_up}")
@@ -1096,7 +1103,7 @@ def check_input_config(config, confirm=True, pprint=True):
 
     print("\n\nObservation Details:")
     print("=" * 64)
-    fits_info = get_fits_info(crisp_im, pprint=True)
+
     t_obs = fits_info['avg_time_obs']
     all_wavelengths = fits_info['all_wavelengths']
     fov = fov_angle(t_obs)
@@ -1121,7 +1128,7 @@ def check_input_config(config, confirm=True, pprint=True):
     # Return all the variables as a config dictionary
     config_dict = {
         'data_dir': data_dir, 'crisp_im': crisp_im, 'save_dir': save_dir,
-        'xorg': xorg, 'xsize': xsize, 'yorg': yorg, 'ysize': ysize, 'time_index': time_index, 'scale': scale,
+        'xorg': xorg, 'xsize': xsize, 'yorg': yorg, 'ysize': ysize, 'time_range': time_range, 'scale': scale,
         'is_north_up': is_north_up, 'crop': crop, 'shape': shape, 'contrasts': contrasts, 'best_frame': best_frame,
         'best_frame_index': best_frame_index,
         'hmi_con_series': hmi_con_series, 'hmi_mag_series': hmi_mag_series, 'email': email, 'mask': mask,
