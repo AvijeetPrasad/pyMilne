@@ -519,11 +519,15 @@ def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=No
 
 
 def interactive_fov_selection(crisp_im, scale=1):
-    data = load_crisp_fits(crisp_im)[:, :, 0, 0]
-    ny, nx = data.shape
+    data = load_crisp_fits(crisp_im)
+    ny, nx, ns, nw = data.shape
+    data_I = data[:, :, 0, 0]
+    data_V = data[:, :, 3, nw // 4]
     x1, x2 = 0, nx-1
     y1, y2 = 0, ny-1
-    plot_image(data, title='Interactive FOV Selection', cmap='gray', scale=scale, figsize=(6, 6),
+    plot_image(data_I, title='Interactive FOV Selection', cmap='gray', scale=scale, figsize=(6, 6),
+               show_roi=True, xrange=[x1, x2], yrange=[y1, y2], grid=True)
+    plot_image(data_V, title='Interactive FOV Selection', cmap='gray', scale=scale, figsize=(6, 6),
                show_roi=True, xrange=[x1, x2], yrange=[y1, y2], grid=True)
     while True:
         print(f"Current FOV: x1 = {x1}, x2 = {x2}, y1 = {y1}, y2 = {y2}")
@@ -537,7 +541,9 @@ def interactive_fov_selection(crisp_im, scale=1):
             xrange = [x1, x2]
             yrange = [y1, y2]
 
-            plot_image(data, title='Interactive ROI Selection', cmap='gray', scale=scale, figsize=(6, 6),
+            plot_image(data_I, title='Interactive ROI Selection', cmap='gray', scale=scale, figsize=(6, 6),
+                       show_roi=True, xrange=xrange, yrange=yrange)
+            plot_image(data_V, title='Interactive ROI Selection', cmap='gray', scale=scale, figsize=(6, 6),
                        show_roi=True, xrange=xrange, yrange=yrange)
 
         else:
@@ -1023,10 +1029,42 @@ def check_input_config(config, confirm=True, pprint=True):
     plot_hmi_ic_mag_flag = config['plot_hmi_ic_mag_flag']
     plot_crisp_image_flag = config['plot_crisp_image_flag']
 
+    # === Check the inversion output parameters ===
     inversion_save_fits_list = config['inversion_save_fits_list']
     inversion_save_errors_fits = config['inversion_save_errors_fits']
     inversion_save_lp_list = config['inversion_save_lp_list']
     inversion_save_errors_lp = config['inversion_save_errors_lp']
+
+    inversion_out_list = ["Bstr", "Binc", "Bazi", "Vlos", "Vdop",
+                          "etal", "damp", "S0", "S1", "Blos", "Bhor", "Nan_mask"]
+    inverstion_error_out_list = ["Bstr_err", "Binc_err", "Bazi_err", "Vlos_err", "Vdop_err",
+                                 "etal_err", "damp_err", "S0_err", "S1_err", "Blos_err", "Bhor_err", "Nan_mask"]
+
+    # check if all the inversion_save_fits_list and inversion_save_lp_list are in the inversion_out_list
+    for item in inversion_save_fits_list:
+        if item not in inversion_out_list:
+            print(f"Error: {item} is not in the inversion_out_list")
+            print(f"Available items: {inversion_out_list}")
+            sys.exit(1)
+    for item in inversion_save_lp_list:
+        if item not in inversion_out_list:
+            print(f"Error: {item} is not in the inversion_out_list")
+            print(f"Available items: {inversion_out_list}")
+            sys.exit(1)
+
+    # check if all the inversion_save_errors_fits and inversion_save_errors_lp are in the inverstion_error_out_list
+    if inversion_save_errors_fits:
+        for item in inversion_save_errors_fits:
+            if item not in inverstion_error_out_list:
+                print(f"Error: {item} is not in the inverstion_error_out_list")
+                print(f"Available items: {inverstion_error_out_list}")
+                sys.exit(1)
+    if inversion_save_errors_lp:
+        for item in inversion_save_errors_lp:
+            if item not in inverstion_error_out_list:
+                print(f"Error: {item} is not in the inverstion_error_out_list")
+                print(f"Available items: {inverstion_error_out_list}")
+                sys.exit(1)
 
     xrange = [xorg, xorg + xsize]
     yrange = [yorg, yorg + ysize]
