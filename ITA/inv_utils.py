@@ -798,6 +798,11 @@ def plot_sst_blos_bhor(blos_file, bhor_file, tt=0, xrange=None, yrange=None, fig
     blos_sst = lp.getdata(blos_file)
     bhor_sst = lp.getdata(bhor_file)
 
+    # if blos_sst and bhor_sst have 2 dimensions, add a third dimension with size 1
+    if blos_sst.ndim == 2:
+        blos_sst = blos_sst[:, :, np.newaxis]
+    if bhor_sst.ndim == 2:
+        bhor_sst = bhor_sst[:, :, np.newaxis]
     if crop:
         blos_sst_crop = blos_sst[xrange[0]:xrange[1], yrange[0]:yrange[1], tt].T
         bhor_sst_crop = bhor_sst[xrange[0]:xrange[1], yrange[0]:yrange[1], tt].T
