@@ -1,7 +1,8 @@
 import numpy as np
+import matplotlib.pyplot as plt
+from scipy.constants import c, e, m_e
 from astropy.io import fits
 from einops import rearrange
-import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import imtools as im
 import copy
@@ -18,10 +19,12 @@ import re
 import yaml
 import time
 import psutil
+import helita_io_lp as lp
+from get_fov_angle import fov_angle
 # Use the safe_import function to import custom modules safely
-from load_env_and_set_pythonpath import safe_import
-lp = safe_import('helita.io', 'lp')
-fov_angle = safe_import('lp_scripts.get_fov_angle', 'fov_angle')
+# from load_env_and_set_pythonpath import safe_import
+# lp = safe_import('helita.io', 'lp')
+# fov_angle = safe_import('lp_scripts.get_fov_angle', 'fov_angle')
 
 
 class container:
@@ -1057,14 +1060,19 @@ def check_input_config(config, confirm=True, pprint=True):
     print("=" * 64)
     fits_info = get_fits_info(crisp_im, pprint=True)
     t_obs = fits_info['avg_time_obs']
+    all_wavelengths = fits_info['all_wavelengths']
     fov = fov_angle(t_obs)
     print(f'FOV angle: {fov:.2f} deg')
 
     # Plot the contrast as a function of the time index
     plot_contrast(contrasts, figsize=(6, 3))
-    plot_image(best_frame, title=f'Frame: {best_frame_index}', cmap='gray', scale=scale, figsize=(6, 6),
+    plot_image(best_frame, title=f'I (Frame: {best_frame_index})', cmap='gray', scale=scale, figsize=(6, 6),
                show_roi=True, xrange=xrange, yrange=yrange)
-
+    # Plot the stokes V of the best_frame
+    best_frame_v = load_crisp_fits(crisp_im, tt=best_frame_index)
+    blos_map = create_blos_map(best_frame_v, all_wavelengths, max_normalise=True, apply_mask=True)
+    plot_image(blos_map, title=f'Blos (Frame: {best_frame_index})', cmap='gray', scale=scale, figsize=(6, 6),
+               show_roi=True, xrange=xrange, yrange=yrange)
     # Confirm the parameters from the user
     if confirm:
         validate_input = input("Do you want to proceed with these parameters? (y/n): ")
@@ -1178,3 +1186,89 @@ def get_nthreads(usage_fraction=1, verbose=True):
         print(f"Physical cores: {physical_cores}")
         print(f"Using {usage_fraction:.0%} of physical cores: {nthreads} threads")
     return nthreads
+
+
+def weak_field_approx(In, V, wavelength):
+    """
+    Calculate the line-of-sight magnetic field using the weak field approximation (vectorized).
+
+    Parameters
+    ----------
+    In : array-like
+        Stokes I profile array with shape (ny, nx, nw).
+    V : array-like
+        Stokes V profile array with shape (ny, nx, nw).
+    wavelength : array-like
+        Wavelength array corresponding to the Stokes profiles.
+
+    Returns
+    -------
+    B_los : array-like
+        Estimated line-of-sight magnetic field with shape (ny, nx).
+    """
+    # Calculate the derivative of Stokes I with respect to wavelength
+    dI_dlambda = np.gradient(In, axis=2) / np.gradient(wavelength)
+
+    # Reshape the arrays for vectorized least squares fitting
+    ny, nx, nw = In.shape
+    dI_dlambda_reshaped = dI_dlambda.reshape(-1, nw)  # Shape (ny*nx, nw)
+    V_reshaped = V.reshape(-1, nw)  # Shape (ny*nx, nw)
+
+    # Perform least squares fitting for all pixels simultaneously using np.einsum
+    A = dI_dlambda_reshaped[:, :, np.newaxis]  # Shape (ny*nx, nw, 1)
+    B = V_reshaped[:, :, np.newaxis]  # Shape (ny*nx, nw, 1)
+
+    AT_A = np.einsum('ijk,ijl->ikl', A, A)
+    AT_B = np.einsum('ijk,ijl->ikl', A, B)
+
+    # Solve for the coefficients using np.linalg.pinv to handle singular matrices
+    coeffs = np.einsum('ijk,ikl->ijl', np.linalg.pinv(AT_A), AT_B).squeeze()
+
+    # Calculate the constant C
+    wavelength_mean = np.mean(wavelength)
+    C = (e * wavelength_mean**2) / (4 * np.pi * c * m_e)
+
+    # Calculate the line-of-sight magnetic field
+    B_los = -coeffs / C
+
+    # Reshape the B_los to the original spatial dimensions
+    B_los_map = B_los.reshape(ny, nx)
+
+    return B_los_map
+
+
+def create_blos_map(data, wavelength, median_normalise=False, apply_mask=False, max_normalise=False):
+    """
+    Create a line-of-sight magnetic field map from a dataset (optimized).
+
+    Parameters
+    ----------
+    data : numpy array
+        The input data array with shape (ny, nx, ns, nw).
+    wavelength : array-like
+        Wavelength array corresponding to the Stokes profiles.
+
+    Returns
+    -------
+    blos_map : numpy array
+        The line-of-sight magnetic field map with shape (ny, nx).
+    """
+    # Extract Stokes I and V profiles
+    In = data[:, :, 0, :]  # Stokes I profile
+    V = data[:, :, 3, :]  # Stokes V profile
+    if apply_mask:
+        mask = np.isnan(In)
+        masked_I = masked_data(In, mask, replace_val=0, fix_nan=True, fix_inf=True)
+        masked_V = masked_data(V, mask, replace_val=0, fix_nan=True, fix_inf=True)
+        # Calculate B_los map using vectorized weak field approximation
+        blos_map = weak_field_approx(masked_I, masked_V, wavelength)
+    else:
+        blos_map = weak_field_approx(In, V, wavelength)
+
+    if max_normalise:
+        blos_map_scaling = np.max(np.abs(blos_map))
+        blos_map /= blos_map_scaling
+    elif median_normalise:
+        blos_map_scaling = np.median(np.abs(blos_map))
+        blos_map /= blos_map_scaling
+    return blos_map

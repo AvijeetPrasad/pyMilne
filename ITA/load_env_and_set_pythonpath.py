@@ -88,7 +88,7 @@ def safe_import(module_name, attribute_name=None):
 
 # Automatically run the setup function on import
 pythonpath = setup_pythonpath_from_env()
-print_pythonpath()
+# print_pythonpath()
 
 # Explicitly export functions
 __all__ = ['setup_pythonpath_from_env', 'print_pythonpath', 'safe_import']
