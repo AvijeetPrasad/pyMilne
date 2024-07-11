@@ -33,7 +33,7 @@ def load_crisp_frame(crisp_im, tt=0, crop=False, xrange=None, yrange=None):
     return ll
 
 
-def init_me_model(ll, sigma_strength=0.005, sigma_list=[1, 9.0, 9.0, 4.0], erh=-0.001, dtype=np.float64, nthreads=1):
+def init_me_config(ll, sigma_strength=0.005, sigma_list=[1, 9.0, 9.0, 4.0], erh=-0.001, dtype=np.float64, nthreads=1):
     """
     Initialize the Milne-Eddington model using provided inputs.
 
