@@ -10,15 +10,15 @@ crisp_im: 'nb_6173_2021-06-22T08:17:48_scans=0-162_stokes_corrected_im.fits'
 
 
 # Crop flag to crop the CRISP image and run inversion only for a smaller region of interest
-crop: true
-check_crop: false  # Interactively select the cropping region
+crop: false
+check_crop: true  # Interactively select the cropping region
 
 # # Origin coordinates after cropping for the region of interest
-# xorg: 200  # Origin x-coordinate
-# yorg: 360  # Origin y-coordinate
+# xorg: 800  # Origin x-coordinate
+# yorg: 550  # Origin y-coordinate
 # # Size
-# xsize: 480  # Size along x-axis after cropping
-# ysize: 400  # Size along y-axis after cropping
+# xsize: 256  # Size along x-axis after cropping
+# ysize: 64  # Size along y-axis after cropping
 
 # # Origin coordinates after cropping for the region of interest
 xorg: 280  # Origin x-coordinate
@@ -28,7 +28,7 @@ xsize: 64  # Size along x-axis after cropping
 ysize: 64  # Size along y-axis after cropping
 
 # Time range for the CRISP image in the format [start_time_index, end_time_index], [start_time_index, end_time_index, step_size], "first", "best", "full"
-time_range: 'first'
+time_range: "best"
 
 # Scale in arcsec/pixel
 scale: 0.058
@@ -60,17 +60,17 @@ plot_hmi_ic_mag_flag: false
 plot_crisp_image_flag: false
 
 # Show intermediate plots during inversion
-verbose: false
+verbose: true
 
 # Save the inversion results as fits
 # ["Bstr", "Binc", "Bazi", "Vlos", "Vdop", "etal", "damp", "S0", "S1", "Blos", "Bhor", "Nan_mask"]
 # ["Bstr_err", "Binc_err", "Bazi_err", "Vlos_err", "Vdop_err", "etal_err", "damp_err", "S0_err", "S1_err", "Blos_err", "Bhor_err", "Nan_mask"]
 
-inversion_save_fits_list: ["Blos"]
-inversion_save_errors_fits: true
+inversion_save_fits_list: ["Blos", "Bhor"]
+inversion_save_errors_fits: false
 
 # Save inversion results as LP cubes
-inversion_save_lp_list: ["Blos"]
+inversion_save_lp_list: ["Blos", "Bhor"]
 inversion_save_errors_lp: false
 
 
