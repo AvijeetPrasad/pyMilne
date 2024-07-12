@@ -1149,8 +1149,8 @@ def check_input_config(config, confirm=True, pprint=True):
                    show_roi=True, xrange=xrange, yrange=yrange)
         # Plot the stokes V of the best_frame
         best_frame_v = load_crisp_fits(crisp_im, tt=best_frame_index)
-        blos_map = create_blos_map(best_frame_v, all_wavelengths, max_normalise=True, apply_mask=True)
-        plot_image(blos_map, title=f'Blos (Frame: {best_frame_index})', cmap='gray', scale=scale, figsize=(6, 6),
+        wfa_blos_map = create_blos_map(best_frame_v, all_wavelengths, max_normalise=True, apply_mask=True)
+        plot_image(wfa_blos_map, title=f'Blos (Frame: {best_frame_index})', cmap='gray', scale=scale, figsize=(6, 6),
                    show_roi=True, xrange=xrange, yrange=yrange)
         # Confirm the parameters from the user
     if confirm:
@@ -1173,7 +1173,8 @@ def check_input_config(config, confirm=True, pprint=True):
         'inversion_save_fits_list': inversion_save_fits_list,
         'inversion_save_errors_fits': inversion_save_errors_fits,
         'inversion_save_lp_list': inversion_save_lp_list,
-        'inversion_save_errors_lp': inversion_save_errors_lp
+        'inversion_save_errors_lp': inversion_save_errors_lp,
+        'wfa_blos_map': wfa_blos_map
     }
     return config_dict
 
@@ -1242,7 +1243,7 @@ def save_fits_header_as_text(fits_header, filename, save_dir='.'):
     with open(f'{save_dir}/{filename}', 'w') as f:
         for key, value in fits_header.items():
             f.write(f'{key}: {value}\n')
-    print('fits_header.txt saved successfully')
+    print(f'fits_header.txt saved to: {save_dir}/{filename}')
 
 
 def get_nthreads(usage_fraction=1, verbose=True):
