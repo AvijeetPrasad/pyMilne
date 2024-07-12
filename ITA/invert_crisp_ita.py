@@ -60,6 +60,7 @@ inversion_save_lp_list = config['inversion_save_lp_list']
 inversion_save_errors_lp = config['inversion_save_errors_lp']
 # union of inversion_save_fits_list and inversion_save_lp_list
 inversion_save_list = list(set(inversion_save_fits_list + inversion_save_lp_list))
+wfa_blos_map = config['wfa_blos_map']
 
 # Extract the fits information from the header for the best frame
 tt = best_frame_index
@@ -112,9 +113,13 @@ if plot_hmi_ic_mag_flag:
 # %%
 if plot_crisp_image_flag:
     print('SST CRISP image with North up:', not (is_north_up))
-    iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=0, ww=0, figsize=(8, 8), fontsize=10,
-                        rot_fov=fov_angle, north_up=not (is_north_up), crop=crop,
-                        xrange=xrange, yrange=yrange, xtick_range=[x1, x2], ytick_range=[y1, y2])
+    iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=0, ww=0, figsize=(8, 8), fontsize=10, rot_fov=fov_angle,
+                        north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange,
+                        xtick_range=[x1, x2], ytick_range=[y1, y2])
+
+    iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=3, ww=nw // 4, figsize=(8, 8), fontsize=10, rot_fov=fov_angle,
+                        north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange,
+                        xtick_range=[x1, x2], ytick_range=[y1, y2])
 
 # %%
 # Load the variables from the inversion configuration
@@ -166,7 +171,6 @@ for tt in time_range:
     if first_iteration:
         # Obtain the initial model parameters after the inversion
         Imodel = meu.init_model(me, ny, nx, init_model_params=init_model_params, dtype=dtype)
-        first_iteration = False
 
     # Run the randomised ME inversion for the first time
     print('=== BLOCK 1: Randomised ME Inversions ===')
@@ -181,6 +185,7 @@ for tt in time_range:
     # if not init_model_from_sequence:
     if not first_iteration:
         median_filter_size = [2, 6, 8]
+        first_iteration = False
 
     # Apply median filter based on the chi2 mean to obtain a smoother model
     print('=== BLOCK 2: Median-filtered output ===')
@@ -204,8 +209,8 @@ for tt in time_range:
     # Run the spatially regularised ME inversion
     print('=== BLOCK 4: Spatially Regularised ME Inversions ===')
     Imodel, syn, chi2 = meu.run_spatially_regularized_inversion(
-        me, Imodel, obs, sig, nIter3, chi2_thres3, mu, alpha_strength, alpha_list, method=1,
-        delay_bracket=3, dtype=dtype, verbose=True)
+        me, Imodel, obs, sig, nIter3, chi2_thres3, mu, alpha_strength, alpha_list, method=1, delay_bracket=3,
+        dtype=dtype, verbose=True)
     Imodel = np.squeeze(Imodel)
     errors = me.estimate_uncertainties(Imodel, obs, sig, mu=mu)
 
@@ -370,7 +375,7 @@ iu.save_fits_header_as_text(fits_header_dict, 'fits_header.txt', save_dir=save_d
 # bhor_new = 'temp/Bhor_6173_2021-06-22_T090257_2021-06-22_T090257_t_145-145.fcube'
 
 # %%
-# iu.plot_sst_blos_bhor(blos_new, bhor_new, tt=0,xrange=xrange, yrange=yrange,
-#  figsize=(20,10), fontsize=12, vmin1=-50, vmax1=50, vmax2=200)
-# iu.plot_sst_blos_bhor(blos_old, bhor_old, tt=145,xrange=xrange, yrange=yrange,
-#  figsize=(20,10), fontsize=12, crop=crop, vmin1=-50, vmax1=50, vmax2=200)
+# iu.plot_sst_blos_bhor(blos_new, bhor_new, tt=0,xrange=xrange, yrange=yrange, figsize=(20,10), fontsize=12, vmin1=-50,
+#  vmax1=50, vmax2=200)
+# iu.plot_sst_blos_bhor(blos_old, bhor_old, tt=145,xrange=xrange, yrange=yrange, figsize=(20,10), fontsize=12,
+#  crop=crop, vmin1=-50, vmax1=50, vmax2=200)
