@@ -1012,9 +1012,15 @@ def check_input_config(config, confirm=True, pprint=True):
     if not os.path.exists(save_dir):
         try:
             print("Save directory not found!")
-            print(f"Creating directory: '{save_dir}'")
             os.makedirs(save_dir)
+            # check if the directory has been created
+            if os.path.exists(save_dir):
+                print(f"Directory created: '{save_dir}'")
+            else:
+                print(f"Error: Unable to create directory '{save_dir}'")
+                sys.exit(1)
         except OSError:
+            # if the directory cannot be created, raise an error
             print(f"Error: Unable to create directory '{save_dir}'")
             sys.exit(1)
 
@@ -1037,7 +1043,7 @@ def check_input_config(config, confirm=True, pprint=True):
     elif time_range == 'first':
         time_range = [0]
     elif time_range == 'full':
-        time_range = [0, nt]
+        time_range = list(range(nt))
     elif isinstance(time_range, list):
         if len(time_range) == 2:
             time_range = list(range(time_range[0], time_range[1]))
