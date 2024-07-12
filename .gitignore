@@ -11,3 +11,4 @@ example_CRISP/temp
 *.fcube
 *.fits 
 temp*
+.DS_Store

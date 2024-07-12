@@ -973,9 +973,9 @@ def check_input_config(config, confirm=True, pprint=True):
         'plot_hmi_ic_mag': False,
         'plot_crisp_image': False,
         'verbose': True,
-        'inversion_save_fits_list': ["Bstr", "Binc", "Bazi", "Vlos"],
+        'inversion_save_fits_list': [],
         'inversion_save_errors_fits': False,
-        'inversion_save_lp_list': ["Blos", "Bhor", "Bazi", "Vlos"],
+        'inversion_save_lp_list': [],
         'inversion_save_errors_lp': False
     }
 
@@ -991,14 +991,32 @@ def check_input_config(config, confirm=True, pprint=True):
             sys.exit(1)
 
     data_dir = config['data_dir']
-    # set sav_dir as data_dir if not provided
-    config.setdefault('save_dir', data_dir)
 
-    crisp_im = os.path.join(data_dir, config['crisp_im'])
-
-    if not os.path.exists(crisp_im):
-        print(f"Error: File not found '{crisp_im}'")
+    # check if the data directory exists, if not raise an error
+    if not os.path.exists(data_dir):
+        print(f"Error: Directory not found: '{data_dir}'")
         sys.exit(1)
+
+    # check if the CRISP image file exists, if not raise an error
+    crisp_im = os.path.join(data_dir, config['crisp_im'])
+    if not os.path.exists(crisp_im):
+        print(f"Error: File not found: '{crisp_im}'")
+        sys.exit(1)
+
+    # check if the save directory exists, if not try to create it, if not raise an error
+    try:
+        save_dir = config['save_dir']
+    except KeyError:
+        save_dir = data_dir
+
+    if not os.path.exists(save_dir):
+        try:
+            print("Save directory not found!")
+            print(f"Creating directory: '{save_dir}'")
+            os.makedirs(save_dir)
+        except OSError:
+            print(f"Error: Unable to create directory '{save_dir}'")
+            sys.exit(1)
 
     # Get the time index with the best contrast
     data_cube, mask = load_crisp_fits_all_timesteps(crisp_im)
@@ -1077,6 +1095,10 @@ def check_input_config(config, confirm=True, pprint=True):
             print(f"Error: {item} is not in the inversion_out_list")
             print(f"Available items: {inversion_out_list}")
             sys.exit(1)
+    # if both inversion_save_fits_list and inversion_save_lp_list are empty, raise a warning but continue
+    if not inversion_save_fits_list and not inversion_save_lp_list:
+        print("Warning: Both inversion_save_fits_list and inversion_save_lp_list are empty.")
+        print("No inversion output will be saved.")
 
     xrange = [xorg, xorg + xsize]
     yrange = [yorg, yorg + ysize]
@@ -1114,16 +1136,17 @@ def check_input_config(config, confirm=True, pprint=True):
     fov = fov_angle(t_obs)
     print(f'FOV angle: {fov:.2f} deg')
 
-    # Plot the contrast as a function of the time index
-    plot_contrast(contrasts, figsize=(6, 3))
-    plot_image(best_frame, title=f'I (Frame: {best_frame_index})', cmap='gray', scale=scale, figsize=(6, 6),
-               show_roi=True, xrange=xrange, yrange=yrange)
-    # Plot the stokes V of the best_frame
-    best_frame_v = load_crisp_fits(crisp_im, tt=best_frame_index)
-    blos_map = create_blos_map(best_frame_v, all_wavelengths, max_normalise=True, apply_mask=True)
-    plot_image(blos_map, title=f'Blos (Frame: {best_frame_index})', cmap='gray', scale=scale, figsize=(6, 6),
-               show_roi=True, xrange=xrange, yrange=yrange)
-    # Confirm the parameters from the user
+    if verbose:
+        # Plot the contrast as a function of the time index
+        plot_contrast(contrasts, figsize=(6, 3))
+        plot_image(best_frame, title=f'I (Frame: {best_frame_index})', cmap='gray', scale=scale, figsize=(6, 6),
+                   show_roi=True, xrange=xrange, yrange=yrange)
+        # Plot the stokes V of the best_frame
+        best_frame_v = load_crisp_fits(crisp_im, tt=best_frame_index)
+        blos_map = create_blos_map(best_frame_v, all_wavelengths, max_normalise=True, apply_mask=True)
+        plot_image(blos_map, title=f'Blos (Frame: {best_frame_index})', cmap='gray', scale=scale, figsize=(6, 6),
+                   show_roi=True, xrange=xrange, yrange=yrange)
+        # Confirm the parameters from the user
     if confirm:
         validate_input = input("Do you want to proceed with these parameters? (y/n): ")
         if validate_input.lower() != 'y':
