@@ -1,17 +1,18 @@
 # Data directory
 # data_dir: "/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/"
+data_dir: '/mn/stornext/d18/lapalma/reduc/2021/2021-06-22/CRISP/cubes_nb/'
+
 # CRISP image file
 # crisp_im: "nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits"
-
-# Data directory
-data_dir: '/mn/stornext/d18/lapalma/reduc/2021/2021-06-22/CRISP/cubes_nb/'
-# CRISP image file
 crisp_im: 'nb_6173_2021-06-22T08:17:48_scans=0-162_stokes_corrected_im.fits'
 
+# Save directory for saving temporary files and final outputs
+save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2021-06-22/"
+# save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2020-08-07/"
 
 # Crop flag to crop the CRISP image and run inversion only for a smaller region of interest
-crop: false
-check_crop: true  # Interactively select the cropping region
+crop: true
+check_crop: false  # Interactively select the cropping region
 
 # # Origin coordinates after cropping for the region of interest
 # xorg: 800  # Origin x-coordinate
@@ -28,7 +29,7 @@ xsize: 64  # Size along x-axis after cropping
 ysize: 64  # Size along y-axis after cropping
 
 # Time range for the CRISP image in the format [start_time_index, end_time_index], [start_time_index, end_time_index, step_size], "first", "best", "full"
-time_range: "best"
+time_range: "full"
 
 # Scale in arcsec/pixel
 scale: 0.058
@@ -46,10 +47,6 @@ hmi_mag_series: "hmi.M_45s"
 # Email address used for JSOC download. You can optionally keep it empty string
 email: ""
 
-# Save directory for saving temporary files and final outputs
-# save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2021-06-22/"
-save_dir: "temp/"
-
 # Plot SST pointings? To plot SST pointings for the full observation over HMI Ic
 plot_sst_pointings_flag: false
 
@@ -66,11 +63,11 @@ verbose: true
 # ["Bstr", "Binc", "Bazi", "Vlos", "Vdop", "etal", "damp", "S0", "S1", "Blos", "Bhor", "Nan_mask"]
 # ["Bstr_err", "Binc_err", "Bazi_err", "Vlos_err", "Vdop_err", "etal_err", "damp_err", "S0_err", "S1_err", "Blos_err", "Bhor_err", "Nan_mask"]
 
-inversion_save_fits_list: ["Blos", "Bhor"]
+inversion_save_fits_list: []
 inversion_save_errors_fits: false
 
 # Save inversion results as LP cubes
-inversion_save_lp_list: ["Blos", "Bhor"]
+inversion_save_lp_list: ["Blos", "Bhor", "Bazi"]
 inversion_save_errors_lp: false
 
 

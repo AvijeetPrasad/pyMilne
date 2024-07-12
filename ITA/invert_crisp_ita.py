@@ -19,13 +19,13 @@ print_pythonpath()
 # Reload the libraries to get the changes
 importlib.reload(iu)
 importlib.reload(meu)
-print("All libraries reloaded successfully")
+print("All libraries reloaded successfully\n")
 
 # %%
 # Load the configuration from the JSON file
 input_config = iu.load_yaml_config('input_config.yaml')
 # Check the input configuration
-config = iu.check_input_config(input_config, pprint=False, confirm=False)
+config = iu.check_input_config(input_config, pprint=True, confirm=False)
 
 # %%
 # # Extract the input parameters
@@ -94,7 +94,7 @@ if crop:
     nx = xsize
     ny = ysize
 else:
-    print('No cropping is done')
+    print('No cropping is done\n')
 
 # Load the fits header as a dictionary
 fits_header = iu.load_fits_header(crisp_im, out_dict=False)
@@ -112,9 +112,9 @@ if plot_hmi_ic_mag_flag:
 # %%
 if plot_crisp_image_flag:
     print('SST CRISP image with North up:', not (is_north_up))
-    iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=0, ww=0, figsize=(8, 8), fontsize=10, rot_fov=fov_angle,
-                        north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange, xtick_range=[x1, x2],
-                        ytick_range=[y1, y2])
+    iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=0, ww=0, figsize=(8, 8), fontsize=10,
+                        rot_fov=fov_angle, north_up=not (is_north_up), crop=crop,
+                        xrange=xrange, yrange=yrange, xtick_range=[x1, x2], ytick_range=[y1, y2])
 
 # %%
 # Load the variables from the inversion configuration
@@ -150,69 +150,11 @@ inverstion_error_out_list = ["Bstr_err", "Binc_err", "Bazi_err", "Vlos_err", "Vd
                              "etal_err", "damp_err", "S0_err", "S1_err", "Blos_err", "Bhor_err", "Nan_mask"]
 
 # %%
-# tt = best_frame_index
-# print(f'=== Inversion for best time index: {tt} at {all_start_times[tt]} UT ===')
-# print('=== BLOCK 0: Setup up Input Model ===')
-# # Load the CRISP image for a given time step
-# ll = meu.load_crisp_frame(crisp_im, tt, crop=crop, xrange=xrange, yrange=yrange)
-
-# # Setup the inversion parameters for the ME inversion
-# obs, sig, l0, me = meu.init_me_config(ll, sigma_strength, sigma_list, erh=erh, dtype=dtype, nthreads=nthreads)
-
-# # Obtain the initial model parameters after the inversion
-# Imodel = meu.init_model(me, ny, nx, init_model_params=init_model_params, dtype=dtype)
-
-# # Run the randomised ME inversion for the first time
-# print('=== BLOCK 1: Randomised ME Inversions ===')
-# Imodel, syn, chi2 = meu.run_randomised_me_inversion(Imodel, me, obs, sig, nRandom=nRandom1, nIter=nIter1,
-#  chi2_thres=chi2_thres1, mu=mu, verbose=verbose)
-# masked_chi2_mean = iu.masked_mean(chi2, ll.mask)
-# if verbose:
-#     print(f'Masked chi2 mean: {masked_chi2_mean:.2f}')
-#     iu.plot_inversion_output(Imodel, ll.mask, scale=scale, save_fig=False)
-#     iu.plot_mag(Imodel, ll.mask, scale=scale, save_fig=False)
-
-# # Apply median filter based on the chi2 mean to obtain a smoother model
-# print('=== BLOCK 2: Median-filtered output ===')
-# Imodel = meu.apply_median_filter_based_on_chi2(Imodel, masked_chi2_mean, median_filter_chi2_mean_thres,
-#  median_filter_size)
-# if verbose:
-#     iu.plot_inversion_output(Imodel,ll.mask,scale=scale, save_fig=False)
-#     iu.plot_mag(Imodel,ll.mask,scale=scale, save_fig=False)
-
-# # Run the ME inversion again based on the smoothed model input
-# print('=== BLOCK 3: Randomised ME Inversions ===')
-# Imodel, syn, chi2 = meu.run_randomised_me_inversion(Imodel, me, obs, sig, nRandom=nRandom2, nIter=nIter2,
-#  chi2_thres=chi2_thres2, mu=mu, verbose=verbose)
-# masked_chi2_mean = iu.masked_mean(chi2, ll.mask)
-# if verbose:
-#     print(f'Masked chi2 mean: {masked_chi2_mean:.2f}')
-#     iu.plot_inversion_output(Imodel, ll.mask, scale=scale, save_fig=False)
-#     iu.plot_mag(Imodel, ll.mask, scale=scale, save_fig=False)
-
-# # Run the spatially regularised ME inversion
-# print('=== BLOCK 4: Spatially Regularised ME Inversions ===')
-# Imodel, syn, chi2 = meu.run_spatially_regularized_inversion(me, Imodel, obs, sig, nIter3, chi2_thres3, mu,
-#  alpha_strength, alpha_list, method=1, delay_bracket=3, dtype=dtype,verbose=True)
-# Imodel = np.squeeze(Imodel)
-# errors = me.estimate_uncertainties(Imodel, obs, sig, mu=mu)
-# if verbose:
-#     iu.plot_inversion_output(Imodel, ll.mask, scale=scale, save_fig=True, save_dir=save_dir,
-#  figname=f'inversion_output_{tt}.pdf', show_fig=True)
-#     iu.plot_mag(Imodel, ll.mask, scale=scale, save_fig=True, save_dir=save_dir, figname=f'mag_output_{tt}.pdf',
-#  show_fig=True)
-# else:
-#     iu.plot_inversion_output(Imodel, ll.mask, scale=scale, save_fig=True, save_dir=save_dir,
-#  figname=f'inversion_output_{tt}.pdf', show_fig=False)
-#     iu.plot_mag(Imodel, ll.mask, scale=scale, save_fig=True, save_dir=save_dir, figname=f'mag_output_{tt}.pdf',
-#  show_fig=False)
-
-# %%
 first_iteration = True
 for tt in time_range:
     nt = len(time_range)
     count = 1
-    print(f'=== Processing Frame: {count}/{nt}, Index: {tt}, Time: {all_start_times[tt]} UT ===')
+    print(f'\n\n=== Processing Frame: {count}/{nt}, Index: {tt}, Time: {all_start_times[tt]} UT ===')
     count += 1
 
     # Load the CRISP image for a given time step
@@ -262,8 +204,8 @@ for tt in time_range:
     # Run the spatially regularised ME inversion
     print('=== BLOCK 4: Spatially Regularised ME Inversions ===')
     Imodel, syn, chi2 = meu.run_spatially_regularized_inversion(
-        me, Imodel, obs, sig, nIter3, chi2_thres3, mu, alpha_strength, alpha_list, method=1, delay_bracket=3,
-        dtype=dtype, verbose=True)
+        me, Imodel, obs, sig, nIter3, chi2_thres3, mu, alpha_strength, alpha_list, method=1,
+        delay_bracket=3, dtype=dtype, verbose=True)
     Imodel = np.squeeze(Imodel)
     errors = me.estimate_uncertainties(Imodel, obs, sig, mu=mu)
 
@@ -282,17 +224,17 @@ for tt in time_range:
                     save_dir=save_dir, figname=f'mag_output_{tt}.pdf', show_fig=False)
 
     # Apply a mask to the model and errors to remove the NaN values from the edges
-    # print('=== BLOCK 6: Apply Mask to Model and Errors ===')
+    print('=== BLOCK 6: Apply Mask to Model and Errors ===')
     masked_model = meu.apply_mask_to_model(corrected_mo, ll.mask, nan_mask_replacements)
     masked_errors = meu.apply_mask_to_model(errors, ll.mask, nan_mask_replacements)
-    # if verbose:
-    #     print(f'Masked chi2 mean: {masked_chi2_mean:.2f}')
-    #     iu.plot_inversion_output(masked_model,mask=None,scale=scale, save_fig=False)
-    #     iu.plot_inversion_output(masked_errors,mask=None,scale=scale, save_fig=False, apply_median_filter=True,
-    #  filter_index=[1,2], filter_size=3)
-    #     iu.plot_mag(masked_model,mask=None,scale=scale, save_fig=False)
+    if verbose:
+        print(f'Masked chi2 mean: {masked_chi2_mean:.2f}')
+        iu.plot_inversion_output(masked_model, mask=None, scale=scale, save_fig=False)
+        iu.plot_inversion_output(masked_errors, mask=None, scale=scale, save_fig=False,
+                                 apply_median_filter=True, filter_index=[1, 2], filter_size=3)
+        iu.plot_mag(masked_model, mask=None, scale=scale, save_fig=False)
 
-    # print('=== Calculate Blos and Bhor ===')
+    print('=== Calculating Blos and Bhor ===')
     # Rearrange the model and errors for saving
     model_im = rearrange(masked_model, 'ny nx nparams -> nparams ny nx')
     errors_im = rearrange(masked_errors, 'ny nx nparams -> nparams ny nx')
@@ -321,7 +263,7 @@ for tt in time_range:
     errors_im = np.concatenate(
         (errors_im, Blos_err_clipped[np.newaxis], Bhor_err_clipped[np.newaxis], ll.mask[np.newaxis]), axis=0)
 
-    # print('=== Save the Inversion Output ===')
+    print('=== Saving the Inversion Output ===')
     # Rearrange the model and errors for saving in IDL like format
     idl_model_im = rearrange(model_im, 'nparams ny nx -> nparams nx ny')
     idl_errors_im = rearrange(errors_im, 'nparams ny nx -> nparams nx ny')
@@ -410,3 +352,25 @@ iu.save_yaml_config(fits_info, 'fits_info.yaml', save_dir=save_dir, append_times
 # Save the fits header as a separate file
 
 iu.save_fits_header_as_text(fits_header_dict, 'fits_header.txt', save_dir=save_dir)
+
+# %% [markdown]
+# ---
+
+# %%
+# datadir = '/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/'
+# blos_cube = datadir + 'Blos.6173_2020-08-07T08:22:14.icube'
+# bhor_cube = datadir + 'Bhor.6173_2020-08-07T08:22:14.icube'
+
+# data_dir = '/mn/stornext/d18/lapalma/reduc/2021/2021-06-22/CRISP/cubes_nb/'
+# blos_old = data_dir + 'Blos.6173_2021-06-22T08:17:48.fcube'
+# bhor_old = data_dir + 'Bhor.6173_2021-06-22T08:17:48.fcube'
+
+# %%
+# blos_new = 'temp/Blos_6173_2021-06-22_T090257_2021-06-22_T090257_t_145-145.fcube'
+# bhor_new = 'temp/Bhor_6173_2021-06-22_T090257_2021-06-22_T090257_t_145-145.fcube'
+
+# %%
+# iu.plot_sst_blos_bhor(blos_new, bhor_new, tt=0,xrange=xrange, yrange=yrange,
+#  figsize=(20,10), fontsize=12, vmin1=-50, vmax1=50, vmax2=200)
+# iu.plot_sst_blos_bhor(blos_old, bhor_old, tt=145,xrange=xrange, yrange=yrange,
+#  figsize=(20,10), fontsize=12, crop=crop, vmin1=-50, vmax1=50, vmax2=200)
