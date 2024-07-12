@@ -1142,6 +1142,7 @@ def check_input_config(config, confirm=True, pprint=True):
     fov = fov_angle(t_obs)
     print(f'FOV angle: {fov:.2f} deg')
 
+    wfa_blos_map = None
     if verbose:
         # Plot the contrast as a function of the time index
         plot_contrast(contrasts, figsize=(6, 3))

@@ -156,9 +156,9 @@ inverstion_error_out_list = ["Bstr_err", "Binc_err", "Bazi_err", "Vlos_err", "Vd
 
 # %%
 first_iteration = True
+count = 1
 for tt in time_range:
     nt = len(time_range)
-    count = 1
     print(f'\n\n=== Processing Frame: {count}/{nt}, Index: {tt}, Time: {all_start_times[tt]} UT ===')
     count += 1
 
