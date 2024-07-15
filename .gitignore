@@ -12,3 +12,5 @@ example_CRISP/temp
 *.fits 
 temp*
 .DS_Store
+ITA/ambig_input.dat
+ITA/azimuth.dat
