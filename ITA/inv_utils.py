@@ -117,7 +117,8 @@ def make_north_up(data, rot_fov):
 
 
 def plot_crisp_image(name, tt=0, ww=0, ss=0, save_fig=False, crop=False, xtick_range=None, ytick_range=None,
-                     figsize=(8, 8), fontsize=12, rot_fov=0, north_up=False, xrange=None, yrange=None):
+                     figsize=(8, 8), fontsize=12, rot_fov=0, north_up=False, xrange=None, yrange=None,
+                     vmin=None, vmax=None):
     if ss == 0:
         label = 'I'
     elif ss == 1:
@@ -133,17 +134,22 @@ def plot_crisp_image(name, tt=0, ww=0, ss=0, save_fig=False, crop=False, xtick_r
     # plot data using imshow for the first wavelength and Stokes parameter
     fig, ax = plt.subplots(1, 1, figsize=figsize)
 
+    if vmin is None:
+        vmin = np.percentile(data[:, :, ss, ww], 1)
+    if vmax is None:
+        vmax = np.percentile(data[:, :, ss, ww], 99)
     if crop:
         final_data = data[yrange[0]:yrange[1], xrange[0]:xrange[1], ss, ww]
         if north_up:
             final_data = make_north_up(final_data, rot_fov)
         im1 = ax.imshow(final_data, cmap='Greys_r',
-                        interpolation='nearest', aspect='equal', origin='lower')
+                        interpolation='nearest', aspect='equal', origin='lower', vmin=vmin, vmax=vmax)
     else:
         final_data = data[:, :, ss, ww]
         if north_up:
             final_data = make_north_up(final_data, rot_fov)
-        im1 = ax.imshow(final_data, cmap='Greys_r', interpolation='nearest', aspect='equal', origin='lower')
+        im1 = ax.imshow(final_data, cmap='Greys_r', interpolation='nearest',
+                        aspect='equal', origin='lower', vmin=vmin, vmax=vmax)
     # check for nan values in the data and set it to 0.99 min value
     min_val = np.min(final_data)
     final_data = np.nan_to_num(final_data, nan=0.99*min_val)
@@ -497,7 +503,7 @@ def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=No
     ax.set_xlabel('X [arcsec]', fontsize=fontsize)
     ax.set_ylabel('Y [arcsec]', fontsize=fontsize)
     cbar = fig.colorbar(img, ax=ax, orientation='horizontal', shrink=0.8, pad=0.10)
-    cbar.set_label(title, fontsize=fontsize)
+    cbar.set_label(f"{title} ({nx}, {ny})", fontsize=fontsize)
     cbar.ax.tick_params(labelsize=0.8 * fontsize)
 
     # Check if xrange and yrange are provided
