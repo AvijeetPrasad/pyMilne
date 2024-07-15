@@ -283,7 +283,7 @@ for tt in time_range:
         sav_var = inversion_out_list[var_index]
         out_file_name = save_dir + f'temp_{sav_var}_{cen_wav}_t_{tt}_{time_string}.fits'
         iu.save_fits(idl_model_im[var_index], fits_header, out_file_name, overwrite=True, verbose=verbose)
-        if inversion_save_errors_fits and sav_var != 'Nan_mask':
+        if inversion_save_errors_fits or inversion_save_errors_lp and sav_var != 'Nan_mask':
             out_file_name = save_dir + f'temp_{sav_var}_err_{cen_wav}_t_{tt}_{time_string}.fits'
             iu.save_fits(idl_errors_im[var_index], fits_header, out_file_name, overwrite=True, verbose=verbose)
 
