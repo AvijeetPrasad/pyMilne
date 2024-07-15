@@ -310,7 +310,7 @@ for var in inversion_save_list:
         var_header = iu.load_fits_header(out_file_name, out_dict=False)
         full_var_data[ii] = var_data
 
-        if inversion_save_errors_fits and sav_var != 'Nan_mask':
+        if inversion_save_errors_fits or inversion_save_errors_lp and sav_var != 'Nan_mask':
             err_out_file_name = save_dir + f'temp_{sav_var}_err_{cen_wav}_t_{tt}_{time_string}.fits'
             err_data = iu.load_fits_data(err_out_file_name)
             temp_file_list.append(err_out_file_name)
