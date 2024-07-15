@@ -503,7 +503,7 @@ def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=No
     ax.set_xlabel('X [arcsec]', fontsize=fontsize)
     ax.set_ylabel('Y [arcsec]', fontsize=fontsize)
     cbar = fig.colorbar(img, ax=ax, orientation='horizontal', shrink=0.8, pad=0.10)
-    cbar.set_label(f"{title} ({nx}, {ny})", fontsize=fontsize)
+    cbar.set_label(f"{title} (nx: {nx}, ny: {ny})", fontsize=fontsize)
     cbar.ax.tick_params(labelsize=0.8 * fontsize)
 
     # Check if xrange and yrange are provided
@@ -971,6 +971,7 @@ def check_input_config(config, confirm=True, pprint=True):
         'is_north_up': True,
         'crop': False,
         'check_crop': False,
+        'rescale': 1,
         'shape': 'circle',
         'hmi_con_series': 'hmi.Ic_45s',
         'hmi_mag_series': 'hmi.M_45s',
@@ -982,7 +983,8 @@ def check_input_config(config, confirm=True, pprint=True):
         'inversion_save_fits_list': [],
         'inversion_save_errors_fits': False,
         'inversion_save_lp_list': [],
-        'inversion_save_errors_lp': False
+        'inversion_save_errors_lp': False,
+        'delete_temp_files': True
     }
 
     # Update config with default values if keys are missing
@@ -1074,6 +1076,7 @@ def check_input_config(config, confirm=True, pprint=True):
         xsize = config['xsize']
         yorg = config['yorg']
         ysize = config['ysize']
+        rescale = config['rescale']
 
     scale = config['scale']
     is_north_up = config['is_north_up']
@@ -1092,6 +1095,7 @@ def check_input_config(config, confirm=True, pprint=True):
     inversion_save_errors_fits = config['inversion_save_errors_fits']
     inversion_save_lp_list = config['inversion_save_lp_list']
     inversion_save_errors_lp = config['inversion_save_errors_lp']
+    delete_temp_files = config['delete_temp_files']
 
     inversion_out_list = ["Bstr", "Binc", "Bazi", "Vlos", "Vdop",
                           "etal", "damp", "S0", "S1", "Blos", "Bhor", "Nan_mask"]
@@ -1132,6 +1136,7 @@ def check_input_config(config, confirm=True, pprint=True):
         print(f"yorg          : {yorg}")
         print(f"xsize         : {xsize}")
         print(f"ysize         : {ysize}")
+        print(f"rescale       : {rescale}")
         print(f"xrange        : {xrange}")
         print(f"yrange        : {yrange}")
         print(f"Email         : {email}")
@@ -1139,6 +1144,7 @@ def check_input_config(config, confirm=True, pprint=True):
         print(f"Inversion Save Errors FITS: {inversion_save_errors_fits}")
         print(f"Inversion Save LP List: {inversion_save_lp_list}")
         print(f"Inversion Save Errors LP: {inversion_save_errors_lp}")
+        print(f"Delete Temp Files: {delete_temp_files}")
 
     print("\n\nObservation Details:")
     print("=" * 64)
@@ -1181,7 +1187,7 @@ def check_input_config(config, confirm=True, pprint=True):
         'inversion_save_errors_fits': inversion_save_errors_fits,
         'inversion_save_lp_list': inversion_save_lp_list,
         'inversion_save_errors_lp': inversion_save_errors_lp,
-        'wfa_blos_map': wfa_blos_map
+        'wfa_blos_map': wfa_blos_map, 'rescale': rescale, 'delete_temp_files': delete_temp_files
     }
     return config_dict
 

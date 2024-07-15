@@ -1,32 +1,28 @@
-# Data directory
-# data_dir: "/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/"
-data_dir: '/mn/stornext/d18/lapalma/reduc/2021/2021-06-22/CRISP/cubes_nb/'
+# # Data directory
+data_dir: "/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/"
+# data_dir: '/mn/stornext/d18/lapalma/reduc/2021/2021-06-22/CRISP/cubes_nb/'
 
 # CRISP image file
-# crisp_im: "nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits"
-crisp_im: 'nb_6173_2021-06-22T08:17:48_scans=0-162_stokes_corrected_im.fits'
+crisp_im: "nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits"
+# crisp_im: 'nb_6173_2021-06-22T08:17:48_scans=0-162_stokes_corrected_im.fits'
 
 # Save directory for saving temporary files and final outputs
-save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2021-06-22/"
-# save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2020-08-07/"
+# save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2021-06-22/"
+save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2020-08-07/"
 
 # Crop flag to crop the CRISP image and run inversion only for a smaller region of interest
-crop: false
+crop: true
 check_crop: false  # Interactively select the cropping region
 
-# # Origin coordinates after cropping for the region of interest
-# xorg: 800  # Origin x-coordinate
-# yorg: 550  # Origin y-coordinate
-# # Size
-# xsize: 256  # Size along x-axis after cropping
-# ysize: 64  # Size along y-axis after cropping
 
 # # Origin coordinates after cropping for the region of interest
-xorg: 280  # Origin x-coordinate
-yorg: 220  # Origin y-coordinate
+xorg: 200  # Origin x-coordinate
+yorg: 370  # Origin y-coordinate
 # Size
-xsize: 64  # Size along x-axis after cropping
-ysize: 64  # Size along y-axis after cropping
+xsize: 480  # Size along x-axis after cropping
+ysize: 400  # Size along y-axis after cropping
+# Rescale?
+rescale: 4  # Scale down the cropped image by this factor
 
 # Time range for the CRISP image in the format [start_time_index, end_time_index], [start_time_index, end_time_index, step_size], "first", "best", "full"
 time_range: "best"
@@ -70,7 +66,8 @@ inversion_save_errors_fits: false
 inversion_save_lp_list: ["Blos", "Bhor", "Bazi", "Vlos"]
 inversion_save_errors_lp: true
 
-
+# Delete temporary files after inversion
+delete_temp_files: true
 
 
 
