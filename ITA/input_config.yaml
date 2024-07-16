@@ -22,7 +22,7 @@ yorg: 370  # Origin y-coordinate
 xsize: 480  # Size along x-axis after cropping
 ysize: 400  # Size along y-axis after cropping
 # Rescale?
-rescale: 4  # Scale down the cropped image by this factor
+rescale: 2  # Scale down the cropped image by this factor (only for ambiguity resolution for now)
 
 # Time range for the CRISP image in the format [start_time_index, end_time_index], [start_time_index, end_time_index, step_size], "first", "best", "full"
 time_range: "best"

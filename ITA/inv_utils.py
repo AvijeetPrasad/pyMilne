@@ -491,7 +491,7 @@ def plot_hist(data, bins=20, save_fig=False, figsize=(8, 8), vmin=None, vmax=Non
 
 def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=None, cutoff=0.001,
                fontsize=14, figname='image.pdf', cmap='Greys_r', title='Image', clip=False,
-               xrange=None, yrange=None, show_roi=False, grid=False):
+               xrange=None, yrange=None, show_roi=False, grid=False, verbose=False):
     fig, ax = plt.subplots(1, 1, figsize=figsize)
     ny, nx = data.shape  # Note: the shape is (ny, nx)
     extent = np.float32((0, nx, 0, ny)) * scale
@@ -503,7 +503,10 @@ def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=No
     ax.set_xlabel('X [arcsec]', fontsize=fontsize)
     ax.set_ylabel('Y [arcsec]', fontsize=fontsize)
     cbar = fig.colorbar(img, ax=ax, orientation='horizontal', shrink=0.8, pad=0.10)
-    cbar.set_label(f"{title} (nx: {nx}, ny: {ny})", fontsize=fontsize)
+    if verbose:
+        cbar.set_label(f"{title} (nx: {nx}, ny: {ny})", fontsize=fontsize)
+    else:
+        cbar.set_label(f"{title}", fontsize=fontsize)
     cbar.ax.tick_params(labelsize=0.8 * fontsize)
 
     # Check if xrange and yrange are provided
@@ -518,6 +521,102 @@ def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=No
         # gridline in black dashed line
         ax.grid(color='black', linestyle='--', linewidth=0.5)
     fig.tight_layout()
+    if save_fig:
+        print(f"Saving figure with results -> {figname}")
+        fig.savefig(figname, dpi=250, format='pdf')
+    plt.show()
+
+
+def plot_images(data_list, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=None,
+                fontsize=12, figname='image.pdf', cmap='Greys_r', title=None, clip=False,
+                xrange=None, yrange=None, show_roi=False, grid=False, grid_shape=None, cb_pad=0.1,
+                fig_title='Image', verbose=False):
+    """
+    Plots multiple images in a specified grid layout.
+
+    Parameters:
+    - data_list (list of np.ndarray): List of 2D data arrays to be plotted.
+    - scale (float): Scale factor for the image extent.
+    - save_fig (bool): If True, save the figure to a file.
+    - figsize (tuple): Size of the entire figure (width, height).
+    - vmin (list of float or float): Minimum data value to use for colormap scaling.
+    - vmax (list of float or float): Maximum data value to use for colormap scaling.
+    - fontsize (int): Font size for labels and title.
+    - figname (str): Filename to save the figure.
+    - cmap (str): Colormap to use for displaying the image.
+    - title (list of str or str): Title for the colorbar.
+    - clip (bool): If True, clip the data to vmin and vmax.
+    - xrange (tuple): Range for the x-axis (start, end).
+    - yrange (tuple): Range for the y-axis (start, end).
+    - show_roi (bool): If True, show a region of interest.
+    - grid (bool): If True, show a grid on the images.
+    - grid_shape (tuple): Shape of the grid (nrows, ncols).
+    - cb_pad (float): Padding for the colorbar.
+
+    Returns:
+    - None
+    # Generate random test data
+    data1 = np.random.rand(100, 100)
+    data2 = np.random.rand(100, 100)
+    data3 = np.random.rand(100, 100)
+    data4 = np.random.rand(100, 100)
+    data_list = [data1, data2, data3, data4]
+
+    # Test the function with a 2x2 grid
+    plot_images(data_list, vmin=[0, 0.1, 0.2, 0.3], vmax=[0.5, 0.6, 0.7, 0.8],
+        title=['Image 1', 'Image 2', 'Image 3', 'Image 4'], grid=True, grid_shape=(2, 2))
+    """
+
+    num_images = len(data_list)
+
+    # Set default grid shape if not provided
+    if grid_shape is None:
+        grid_shape = (1, num_images) if num_images > 1 else (1, 1)
+
+    fig, axes = plt.subplots(grid_shape[0], grid_shape[1], figsize=figsize)
+    axes = np.array(axes).flatten()  # Ensure axes is a flat array for easy iteration
+
+    # Ensure that parameters are lists and match the number of images
+    vmin = [vmin] * num_images if not isinstance(vmin, list) else vmin
+    vmax = [vmax] * num_images if not isinstance(vmax, list) else vmax
+    title = [title] * num_images if not isinstance(title, list) else title
+    cmap = [cmap] * num_images if not isinstance(cmap, list) else cmap
+
+    for i, (data, ax) in enumerate(zip(data_list, axes)):
+        ny, nx = data.shape  # Note: the shape is (ny, nx)
+        extent = np.float32((0, nx, 0, ny)) * scale
+        if clip:
+            data = np.clip(data, a_min=vmin[i], a_max=vmax[i])
+        img = ax.imshow(data, cmap=cmap[i], interpolation='nearest', aspect='equal',
+                        origin='lower', extent=extent, vmin=vmin[i], vmax=vmax[i])
+        ax.tick_params(axis='both', which='major', labelsize=0.8 * fontsize)
+        ax.set_xlabel('X [arcsec]', fontsize=fontsize)
+        ax.set_ylabel('Y [arcsec]', fontsize=fontsize)
+
+        # Check if xrange and yrange are provided for each subplot
+        if show_roi and xrange is not None and yrange is not None:
+            x1, x2 = np.array(xrange) * scale
+            y1, y2 = np.array(yrange) * scale
+            # Add a dotted rectangle to show the region of interest
+            rect = Rectangle((x1, y1), x2 - x1, y2 - y1, linewidth=1, edgecolor='r', linestyle='--', facecolor='none')
+            ax.add_patch(rect)
+        if grid:
+            ax.grid(True)
+            # gridline in black dashed line
+            ax.grid(color='black', linestyle='--', linewidth=0.5)
+
+        # Add colorbar for each subplot
+        cbar = fig.colorbar(img, ax=ax, orientation='horizontal', shrink=0.8, pad=cb_pad)
+        if verbose:
+            cbar.set_label(f"{title[i]} (nx: {nx}, ny: {ny})", fontsize=fontsize)
+        else:
+            cbar.set_label(f"{title[i]}", fontsize=fontsize)
+        cbar.ax.tick_params(labelsize=0.8 * fontsize)
+    # Add the figure title
+    fig.suptitle(fig_title, fontsize=1.2 * fontsize)
+
+    fig.tight_layout()
+
     if save_fig:
         print(f"Saving figure with results -> {figname}")
         fig.savefig(figname, dpi=250, format='pdf')
