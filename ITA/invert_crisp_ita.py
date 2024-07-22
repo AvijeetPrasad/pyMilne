@@ -35,6 +35,7 @@ crisp_im = config['crisp_im']
 xorg = config['xorg']
 xsize = config['xsize']
 yorg = config['yorg']
+rescale = config['rescale']
 ysize = config['ysize']
 xrange = config['xrange']
 yrange = config['yrange']
@@ -58,6 +59,7 @@ inversion_save_fits_list = config['inversion_save_fits_list']
 inversion_save_errors_fits = config['inversion_save_errors_fits']
 inversion_save_lp_list = config['inversion_save_lp_list']
 inversion_save_errors_lp = config['inversion_save_errors_lp']
+delete_temp_files = config['delete_temp_files']
 # union of inversion_save_fits_list and inversion_save_lp_list
 inversion_save_list = list(set(inversion_save_fits_list + inversion_save_lp_list))
 wfa_blos_map = config['wfa_blos_map']
@@ -114,12 +116,12 @@ if plot_hmi_ic_mag_flag:
 if plot_crisp_image_flag:
     print('SST CRISP image with North up:', not (is_north_up))
     iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=0, ww=0, figsize=(8, 8), fontsize=10, rot_fov=fov_angle,
-                        north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange,
-                        xtick_range=[x1, x2], ytick_range=[y1, y2])
+                        north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange, xtick_range=[x1, x2],
+                        ytick_range=[y1, y2], vmin=0.2)
 
     iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=3, ww=nw // 4, figsize=(8, 8), fontsize=10, rot_fov=fov_angle,
-                        north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange,
-                        xtick_range=[x1, x2], ytick_range=[y1, y2])
+                        north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange, xtick_range=[x1, x2],
+                        ytick_range=[y1, y2], vmin=-0.2)
 
 # %%
 # Load the variables from the inversion configuration
@@ -244,6 +246,10 @@ for tt in time_range:
     model_im = rearrange(masked_model, 'ny nx nparams -> nparams ny nx')
     errors_im = rearrange(masked_errors, 'ny nx nparams -> nparams ny nx')
 
+    # Clip the errors to the maximum value of the model parameters
+    for i in range(len(errors_im)):
+        errors_im[i] = np.clip(errors_im[i], a_min=0, a_max=np.max(np.abs(model_im[i])))
+
     # Create arrays with uncertainties
     B_with_errors = unumpy.uarray(model_im[0], errors_im[0])
     inc_with_errors = unumpy.uarray(model_im[1], errors_im[1])
@@ -337,11 +343,12 @@ for var in inversion_save_list:
             lp_err_data = np.float32(rearrange(full_err_data, 'nt nx ny -> nx ny nt'))
             lp.writeto(lp_err_out_file_name, lp_err_data, extraheader='', dtype=None, verbose=verbose, append=False)
 
-    # Delete the temporary file using os module
-    for temp_file in temp_file_list:
-        if verbose:
-            print(f'Deleting temporary file: {temp_file}')
-        os.remove(temp_file)
+    if delete_temp_files:
+        # Delete the temporary file using os module
+        for temp_file in temp_file_list:
+            if verbose:
+                print(f'Deleting temporary file: {temp_file}')
+            os.remove(temp_file)
 
 # %%
 
@@ -375,7 +382,7 @@ iu.save_fits_header_as_text(fits_header_dict, 'fits_header.txt', save_dir=save_d
 # bhor_new = 'temp/Bhor_6173_2021-06-22_T090257_2021-06-22_T090257_t_145-145.fcube'
 
 # %%
-# iu.plot_sst_blos_bhor(blos_new, bhor_new, tt=0,xrange=xrange, yrange=yrange, figsize=(20,10), fontsize=12, vmin1=-50,
-#  vmax1=50, vmax2=200)
+# iu.plot_sst_blos_bhor(blos_new, bhor_new, tt=0,xrange=xrange, yrange=yrange, figsize=(20,10), fontsize=12,
+#  vmin1=-50, vmax1=50, vmax2=200)
 # iu.plot_sst_blos_bhor(blos_old, bhor_old, tt=145,xrange=xrange, yrange=yrange, figsize=(20,10), fontsize=12,
 #  crop=crop, vmin1=-50, vmax1=50, vmax2=200)
