@@ -241,7 +241,7 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
 
 
 def vector_transformation(peff, latitude_out, longitude_out, B0, field_x_cea,
-                          field_y_cea, field_z_cea, lat_in_rad=False):
+                          field_y_cea, field_z_cea, lat_in_rad=False, debug=False):
     """
     Magnetic field transformation matrix (see Allen Gary & Hagyard 1990)
     [Eq 7 in https://arxiv.org/pdf/1309.2392.pdf]
@@ -283,6 +283,44 @@ def vector_transformation(peff, latitude_out, longitude_out, B0, field_x_cea,
     # field_x_h positive towards west
 
     field_y_h *= -1.0
+
+    if debug:
+        debug_info = (
+            f'Debug Information:\n'
+            f'---------------------------------\n'
+            f'Input Parameters:\n'
+            f'peff: {peff}\n'
+            f'latitude_out: {latitude_out}\n'
+            f'longitude_out: {longitude_out}\n'
+            f'B0: {B0}\n'
+            f'field_x_cea shape: {field_x_cea.shape}\n'
+            f'field_y_cea shape: {field_y_cea.shape}\n'
+            f'field_z_cea shape: {field_z_cea.shape}\n'
+            f'lat_in_rad: {lat_in_rad}\n'
+            f'---------------------------------\n'
+            f'Calculated Parameters:\n'
+            f'BB: {BB}\n'
+            f'LL: {LL}\n'
+            f'Ldif: {Ldif}\n'
+            f'a11: {a11}\n'
+            f'a12: {a12}\n'
+            f'a13: {a13}\n'
+            f'a21: {a21}\n'
+            f'a22: {a22}\n'
+            f'a23: {a23}\n'
+            f'a31: {a31}\n'
+            f'a32: {a32}\n'
+            f'a33: {a33}\n'
+            f'---------------------------------\n'
+            f'Output Values:\n'
+            f'field_x_h shape: {field_x_h.shape}\n'
+            f'field_y_h shape: {field_y_h.shape}\n'
+            f'field_z_h shape: {field_z_h.shape}\n'
+            f'field_x_h min: {field_x_h.min()}, max: {field_x_h.max()}\n'
+            f'field_y_h min: {field_y_h.min()}, max: {field_y_h.max()}\n'
+            f'field_z_h min: {field_z_h.min()}, max: {field_z_h.max()}\n'
+        )
+        print(debug_info)
 
     return field_x_h, field_y_h, field_z_h
 
