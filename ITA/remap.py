@@ -326,9 +326,10 @@ def vector_transformation(peff, latitude_out, longitude_out, B0, field_x_cea,
 
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-def bvec2cea(dict_header, field_x, field_y, field_z, deltal):
+
+def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
     """Transformation to Cylindrical equal area projection (CEA) from CCD
-    detector as it is donde with SHARPs according to Xudong Sun (2018).
+    detector as it is done with SHARPs according to Xudong Sun (2018).
 
     Parameters
     ----------
@@ -340,19 +341,19 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal):
         or it can be created from other data. It should include:
 
         dict_header = {
-        'CRPIX1':float,
-        'CRPIX2':float,
-        'CROTA2':float,
-        'CDELT1':float,
-        'NAXIS1':float,
-        'NAXIS2':float}
-        'LONDTMIN':float,
-        'LONDTMAX':float,
-        'LATDTMIN':float,
-        'LATDTMAX':float,
-        'CRLT_OBS':float,
-        'RSUN_OBS':float
-        }
+            'CRPIX1': float,
+            'CRPIX2': float,
+            'CROTA2': float,
+            'CDELT1': float,
+            'NAXIS1': float,
+            'NAXIS2': float,
+            'LONDTMIN': float,
+            'LONDTMAX': float,
+            'LATDTMIN': float,
+            'LATDTMAX': float,
+            'CRLT_OBS': float,
+            'RSUN_OBS': float
+            }
 
         They should follow the same definition as given for SDO data:
         https://www.lmsal.com/sdodocs/doc?cmd=dcur&proj_num=SDOD0019&file_type=pdf
@@ -364,7 +365,7 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal):
     -------
     arrays
         Three components of the magnetic field in heliocentric spherical coordinates and
-        in cylindrical equal are projection.
+        in cylindrical equal area projection.
 
     Example
     -------
@@ -380,16 +381,35 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal):
 
     """
 
-    # Map projetion
+    # Map projection
     peff, lat_it, lon_it, latc, field_x_int, field_y_int, field_z_int = remap2cea(
-        dict_header, field_x, field_y, field_z, deltal)
+        dict_header, field_x, field_y, field_z, deltal, debug=debug)
 
-    print(f'peff: {peff}')
-    print(f'lat_it shape: {lat_it.shape}, lon_it shape: {lon_it.shape}')
-    print(f'latc: {latc}')
+    if debug:
+        debug_info = (
+            f'Debug Information (remap2cea):\n'
+            f'---------------------------------\n'
+            f'peff: {peff}\n'
+            f'lat_it shape: {lat_it.shape}, lon_it shape: {lon_it.shape}\n'
+            f'latc: {latc}\n'
+            f'field_x_int shape: {field_x_int.shape}\n'
+            f'field_y_int shape: {field_y_int.shape}\n'
+            f'field_z_int shape: {field_z_int.shape}\n'
+        )
+        print(debug_info)
 
     # Vector transformation
     field_x_h, field_y_h, field_z_h = vector_transformation(
-        peff, lat_it, lon_it, latc, field_x_int, field_y_int, field_z_int, lat_in_rad=True)
+        peff, lat_it, lon_it, latc, field_x_int, field_y_int, field_z_int, lat_in_rad=True, debug=debug)
+
+    if debug:
+        debug_info = (
+            f'Debug Information (vector_transformation):\n'
+            f'---------------------------------\n'
+            f'field_x_h shape: {field_x_h.shape}\n'
+            f'field_y_h shape: {field_y_h.shape}\n'
+            f'field_z_h shape: {field_z_h.shape}\n'
+        )
+        print(debug_info)
 
     return field_x_h, field_y_h, field_z_h
