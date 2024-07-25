@@ -4,7 +4,7 @@ import interpolate2d
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-def sphere2img(lat, lon, latc, lonc, xcenter, ycenter, rsun, peff):
+def sphere2img(lat, lon, latc, lonc, xcenter, ycenter, rsun, peff, debug=False):
     """Conversion between Heliographic coordinates to CCD coordinates.
     Ported from sphere2img written in IDL : Adapted from Cartography.c by Rick Bogart,
     by Xudong Sun [Eq 5&6 in https://arxiv.org/pdf/1309.2392.pdf]
@@ -22,6 +22,8 @@ def sphere2img(lat, lon, latc, lonc, xcenter, ycenter, rsun, peff):
     peff : float
         p-angle: the position angle between the geocentric north pole and the solar
         rotational north pole measured eastward from geocentric north.
+    debug : bool, optional
+        If True, prints debug information (default is False).
 
     Returns
     -------
@@ -56,61 +58,41 @@ def sphere2img(lat, lon, latc, lonc, xcenter, ycenter, rsun, peff):
     xi = xi + xcenter
     eta = eta + ycenter
 
-    print(f'xi shape: {xi.shape}, eta shape: {eta.shape}')
-    print(f'xi min: {xi.min()}, xi max: {xi.max()}')
-    print(f'eta min: {eta.min()}, eta max: {eta.max()}')
+    if debug:
+        debug_info = (
+            f'Debug Information:\n'
+            f'---------------------------------\n'
+            f'Input Parameters:\n'
+            f'Latitude: {lat}\n'
+            f'Longitude: {lon}\n'
+            f'Center Latitude: {latc}\n'
+            f'Center Longitude: {lonc}\n'
+            f'Image Center (x, y): ({xcenter}, {ycenter})\n'
+            f'Solar Radius: {rsun}\n'
+            f'Position Angle (peff): {peff}\n'
+            f'---------------------------------\n'
+            f'Intermediate Calculations:\n'
+            f'sin(latc): {sin_latc}, cos(latc): {cos_latc}\n'
+            f'sin(lat): {sin_lat}, cos(lat): {cos_lat}\n'
+            f'cos(lat - lonc): {cos_lat_lon}\n'
+            f'cos(cang): {cos_cang}\n'
+            f'Radius (r): {r}\n'
+            f'xr: {xr}\n'
+            f'yr: {yr}\n'
+            f'cos(peff): {cospa}, sin(peff): {sinpa}\n'
+            f'---------------------------------\n'
+            f'Output Values:\n'
+            f'xi shape: {xi.shape}, eta shape: {eta.shape}\n'
+            f'xi min: {xi.min()}, xi max: {xi.max()}\n'
+            f'eta min: {eta.min()}, eta max: {eta.max()}\n'
+        )
+        print(debug_info)
+
     return xi, eta
 
-
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-def vector_transformation(peff, latitude_out, longitude_out, B0, field_x_cea,
-                          field_y_cea, field_z_cea, lat_in_rad=False):
-    """
-    Magnetic field transformation matrix (see Allen Gary & Hagyard 1990)
-    [Eq 7 in https://arxiv.org/pdf/1309.2392.pdf]
-    """
-
-    nlat_out = len(latitude_out)
-    nlon_out = len(longitude_out)
-
-    PP = peff
-    if lat_in_rad is False:
-        BB = latitude_out[None, 0:nlat_out] * np.pi / 180.0
-        LL = longitude_out[0:nlon_out, None] * np.pi / 180.0
-    else:
-        BB = latitude_out
-        LL = longitude_out
-    L0 = 0.0  # We use central meridian
-    Ldif = LL - L0
-
-    a11 = -np.sin(B0)*np.sin(PP)*np.sin(Ldif)+np.cos(PP)*np.cos(Ldif)
-    a12 = np.sin(B0)*np.cos(PP)*np.sin(Ldif)+np.sin(PP)*np.cos(Ldif)
-    a13 = -np.cos(B0)*np.sin(Ldif)
-    a21 = -np.sin(BB)*(np.sin(B0)*np.sin(PP)*np.cos(Ldif)+np.cos(PP)
-                       * np.sin(Ldif))-np.cos(BB)*np.cos(B0)*np.sin(PP)
-    a22 = np.sin(BB)*(np.sin(B0)*np.cos(PP)*np.cos(Ldif)-np.sin(PP)
-                      * np.sin(Ldif))+np.cos(BB)*np.cos(B0)*np.cos(PP)
-    a23 = -np.cos(B0)*np.sin(BB)*np.cos(Ldif)+np.sin(B0)*np.cos(BB)
-    a31 = np.cos(BB)*(np.sin(B0)*np.sin(PP)*np.cos(Ldif)+np.cos(PP)
-                      * np.sin(Ldif))-np.sin(BB)*np.cos(B0)*np.sin(PP)
-    a32 = -np.cos(BB)*(np.sin(B0)*np.cos(PP)*np.cos(Ldif)-np.sin(PP)
-                       * np.sin(Ldif))+np.sin(BB)*np.cos(B0)*np.cos(PP)
-    a33 = np.cos(BB)*np.cos(B0)*np.cos(Ldif)+np.sin(BB)*np.sin(B0)
-
-    field_x_h = a11 * field_x_cea + a12 * field_y_cea + a13 * field_z_cea
-    field_y_h = a21 * field_x_cea + a22 * field_y_cea + a23 * field_z_cea
-    field_z_h = a31 * field_x_cea + a32 * field_y_cea + a33 * field_z_cea
-
-    # field_z_h positive towards earth
-    # field_y_h positive towards south (-field_y_h = Bt_cea)
-    # field_x_h positive towards west
-
-    field_y_h *= -1.0
-
-    return field_x_h, field_y_h, field_z_h
 
 
-# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 def remap2cea(dict_header, field_x, field_y, field_z, deltal):
     """Map projection of the original input into the cylindical equal area system (CEA).
 
@@ -212,6 +194,55 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal):
     field_z_int = interpolate2d.interpolate2d(x, y, field_z, xi_eta).reshape((nlon_out, nlat_out))
 
     return peff, lat_it, lon_it, latc, field_x_int, field_y_int, field_z_int
+
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+def vector_transformation(peff, latitude_out, longitude_out, B0, field_x_cea,
+                          field_y_cea, field_z_cea, lat_in_rad=False):
+    """
+    Magnetic field transformation matrix (see Allen Gary & Hagyard 1990)
+    [Eq 7 in https://arxiv.org/pdf/1309.2392.pdf]
+    """
+
+    nlat_out = len(latitude_out)
+    nlon_out = len(longitude_out)
+
+    PP = peff
+    if lat_in_rad is False:
+        BB = latitude_out[None, 0:nlat_out] * np.pi / 180.0
+        LL = longitude_out[0:nlon_out, None] * np.pi / 180.0
+    else:
+        BB = latitude_out
+        LL = longitude_out
+    L0 = 0.0  # We use central meridian
+    Ldif = LL - L0
+
+    a11 = -np.sin(B0)*np.sin(PP)*np.sin(Ldif)+np.cos(PP)*np.cos(Ldif)
+    a12 = np.sin(B0)*np.cos(PP)*np.sin(Ldif)+np.sin(PP)*np.cos(Ldif)
+    a13 = -np.cos(B0)*np.sin(Ldif)
+    a21 = -np.sin(BB)*(np.sin(B0)*np.sin(PP)*np.cos(Ldif)+np.cos(PP)
+                       * np.sin(Ldif))-np.cos(BB)*np.cos(B0)*np.sin(PP)
+    a22 = np.sin(BB)*(np.sin(B0)*np.cos(PP)*np.cos(Ldif)-np.sin(PP)
+                      * np.sin(Ldif))+np.cos(BB)*np.cos(B0)*np.cos(PP)
+    a23 = -np.cos(B0)*np.sin(BB)*np.cos(Ldif)+np.sin(B0)*np.cos(BB)
+    a31 = np.cos(BB)*(np.sin(B0)*np.sin(PP)*np.cos(Ldif)+np.cos(PP)
+                      * np.sin(Ldif))-np.sin(BB)*np.cos(B0)*np.sin(PP)
+    a32 = -np.cos(BB)*(np.sin(B0)*np.cos(PP)*np.cos(Ldif)-np.sin(PP)
+                       * np.sin(Ldif))+np.sin(BB)*np.cos(B0)*np.cos(PP)
+    a33 = np.cos(BB)*np.cos(B0)*np.cos(Ldif)+np.sin(BB)*np.sin(B0)
+
+    field_x_h = a11 * field_x_cea + a12 * field_y_cea + a13 * field_z_cea
+    field_y_h = a21 * field_x_cea + a22 * field_y_cea + a23 * field_z_cea
+    field_z_h = a31 * field_x_cea + a32 * field_y_cea + a33 * field_z_cea
+
+    # field_z_h positive towards earth
+    # field_y_h positive towards south (-field_y_h = Bt_cea)
+    # field_x_h positive towards west
+
+    field_y_h *= -1.0
+
+    return field_x_h, field_y_h, field_z_h
 
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
