@@ -93,7 +93,7 @@ def sphere2img(lat, lon, latc, lonc, xcenter, ycenter, rsun, peff, debug=False):
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-def remap2cea(dict_header, field_x, field_y, field_z, deltal):
+def remap2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
     """Map projection of the original input into the cylindical equal area system (CEA).
 
     Parameters
@@ -122,6 +122,8 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal):
         2D array with the magnetic field in cartesian coordinates
     deltal : float
         Heliographic degrees in the rotated coordinate system. SHARP CEA pixels are 0.03
+    debug : bool, optional
+        If True, prints debug information (default is False).
 
     Returns
     -------
@@ -130,7 +132,6 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal):
 
     :Authors:
         Carlos Diaz (ISP/SU 2020), Gregal Vissers (ISP/SU 2020)
-
     """
     # Latitude at disk center [rad]
     latc = dict_header['CRLT_OBS']*np.pi/180.
@@ -192,6 +193,47 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal):
     field_x_int = interpolate2d.interpolate2d(x, y, field_x, xi_eta).reshape((nlon_out, nlat_out))
     field_y_int = interpolate2d.interpolate2d(x, y, field_y, xi_eta).reshape((nlon_out, nlat_out))
     field_z_int = interpolate2d.interpolate2d(x, y, field_z, xi_eta).reshape((nlon_out, nlat_out))
+
+    if debug:
+        debug_info = (
+            f'Debug Information:\n'
+            f'---------------------------------\n'
+            f'Input Parameters:\n'
+            f'dict_header: {dict_header}\n'
+            f'field_x shape: {field_x.shape}\n'
+            f'field_y shape: {field_y.shape}\n'
+            f'field_z shape: {field_z.shape}\n'
+            f'deltal: {deltal}\n'
+            f'---------------------------------\n'
+            f'Calculated Parameters:\n'
+            f'latc: {latc} (radians)\n'
+            f'lonc: {lonc} (radians)\n'
+            f'rsun: {rsun}\n'
+            f'peff: {peff} (radians)\n'
+            f'dx_arcsec: {dx_arcsec}\n'
+            f'rsun_px: {rsun_px}\n'
+            f'xcenter: {xcenter}\n'
+            f'ycenter: {ycenter}\n'
+            f'nlat_out: {nlat_out}\n'
+            f'nlon_out: {nlon_out}\n'
+            f'lon_center: {lon_center} (radians)\n'
+            f'lat_center: {lat_center} (radians)\n'
+            f'x_out: {x_out}\n'
+            f'y_out: {y_out}\n'
+            f'x_it: {x_it}\n'
+            f'y_it: {y_it}\n'
+            f'lat_it shape: {lat_it.shape}\n'
+            f'lon_it shape: {lon_it.shape}\n'
+            f'---------------------------------\n'
+            f'Output Values:\n'
+            f'xi shape: {xi.shape}, eta shape: {eta.shape}\n'
+            f'xi min: {xi.min()}, xi max: {xi.max()}\n'
+            f'eta min: {eta.min()}, eta max: {eta.max()}\n'
+            f'field_x_int shape: {field_x_int.shape}\n'
+            f'field_y_int shape: {field_y_int.shape}\n'
+            f'field_z_int shape: {field_z_int.shape}\n'
+        )
+        print(debug_info)
 
     return peff, lat_it, lon_it, latc, field_x_int, field_y_int, field_z_int
 
