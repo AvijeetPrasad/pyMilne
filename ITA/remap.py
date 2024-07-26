@@ -7,6 +7,7 @@ import astropy.units as u
 import interpolate2d
 from sunpy.coordinates import sun
 from scipy.interpolate import griddata
+import matplotlib.pyplot as plt
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
@@ -678,3 +679,70 @@ def make_map(data, crval1, crval2, cdelt1, crota2, date_obs,
             print(f"{key}: {value}")
     sunpy_map = Map(data, header)
     return sunpy_map
+
+
+def plot_map_on_grid(map_obj, figsize=(8, 8), coord_limits=[-1024, 1024], limb_color='k', grid_color='black',
+                     grid_alpha=0.5, grid_lw=0.5, coord_marker='o', coord_color='red', coord_size=0.01,
+                     vmin_percentile=0.5, vmax_percentile=99.5):
+    """
+    Plot a SunPy map on a full solar grid.
+
+    Parameters
+    ----------
+    map_obj : sunpy.map.Map
+        The SunPy map object to plot.
+    figsize : tuple, optional
+        Size of the figure. Default is (8, 8).
+    coord_limits : list, optional
+        Limits for the coordinates in arcseconds. Default is [-1024, 1024].
+    limb_color : str, optional
+        Color of the solar limb. Default is 'k'.
+    grid_color : str, optional
+        Color of the grid lines. Default is 'black'.
+    grid_alpha : float, optional
+        Alpha value of the grid lines. Default is 0.5.
+    grid_lw : float, optional
+        Line width of the grid lines. Default is 0.5.
+    coord_marker : str, optional
+        Marker style for the coordinates. Default is 'o'.
+    coord_color : str, optional
+        Color of the coordinate markers. Default is 'red'.
+    coord_size : float, optional
+        Size of the coordinate markers. Default is 0.01.
+    vmin_percentile : float, optional
+        Percentile for the minimum data value to plot. Default is 0.5.
+    vmax_percentile : float, optional
+        Percentile for the maximum data value to plot. Default is 99.95.
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        The matplotlib figure object.
+    ax : matplotlib.axes._subplots.AxesSubplot
+        The matplotlib axes object.
+    # Example usage:
+        # plot_full_solar_grid(bz_map)
+    """
+    date = map_obj.date
+    scale = map_obj.scale
+    data = np.full((10, 10), np.nan)
+    skycoord = SkyCoord(0*u.arcsec, 0*u.arcsec, obstime=date, observer='earth', frame=frames.Helioprojective)
+    temp_header = make_fitswcs_header(
+        data, skycoord, scale=[scale.axis1.value, scale.axis2.value]*u.arcsec/u.pixel, reference_pixel=[0, 0]*u.pixel)
+    blank_map = Map(data, temp_header)
+
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(projection=blank_map)
+    blank_map.plot(axes=ax)
+    blank_map.draw_limb(axes=ax, color=limb_color)
+    blank_map.draw_grid(axes=ax, color=grid_color, alpha=grid_alpha, lw=grid_lw, system='carrington')
+
+    xc = coord_limits * u.arcsec
+    yc = coord_limits * u.arcsec
+    coords = SkyCoord(xc, yc, frame=blank_map.coordinate_frame)
+    ax.plot_coord(coords, coord_marker, color=coord_color, markersize=coord_size)
+
+    map_obj.plot(axes=ax, autoalign=True, zorder=1, vmin=np.nanpercentile(
+        map_obj.data, vmin_percentile), vmax=np.nanpercentile(map_obj.data, vmax_percentile))
+
+    return fig, ax
