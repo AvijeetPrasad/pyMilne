@@ -91,7 +91,7 @@ def sphere2img(lat, lon, latc, lonc, xcenter, ycenter, rsun, peff, debug=False):
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-def remap2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
+def remap2cea(dict_header, field, deltal, debug=False):
     """Map projection of the original input into the cylindical equal area system (CEA).
 
     Parameters
@@ -120,7 +120,7 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
         They should follow the same definition as given for SDO data:
         https://www.lmsal.com/sdodocs/doc?cmd=dcur&proj_num=SDOD0019&file_type=pdf
 
-    field_x, field_y, field_z: array
+    field: array
         2D array with the magnetic field in cartesian coordinates
     deltal : float
         Heliographic degrees in the rotated coordinate system. SHARP CEA pixels are 0.03
@@ -204,18 +204,14 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
     # Interpolation (or sampling)
     xi_eta = np.concatenate([xi.flatten()[:, None], eta.flatten()[:, None]], axis=1)
 
-    field_x_int = interpolate2d.interpolate2d(x, y, field_x, xi_eta).reshape((nlon_out, nlat_out))
-    field_y_int = interpolate2d.interpolate2d(x, y, field_y, xi_eta).reshape((nlon_out, nlat_out))
-    field_z_int = interpolate2d.interpolate2d(x, y, field_z, xi_eta).reshape((nlon_out, nlat_out))
+    field_int = interpolate2d.interpolate2d(x, y, field, xi_eta).reshape((nlon_out, nlat_out))
 
     if debug:
         print('\nDebug Information (remap2cea):')
         debug_info = (
             f'---------------------------------\n'
             f'Input Parameters:\n'
-            f'field_x shape: {field_x.shape}\n'
-            f'field_y shape: {field_y.shape}\n'
-            f'field_z shape: {field_z.shape}\n'
+            f'field_x shape: {field.shape}\n'
             f'deltal: {deltal}\n'
             f'---------------------------------\n'
             f'Calculated Parameters:\n'
@@ -233,21 +229,19 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
             f'lat_center: {lat_center:.4f} (radians)\n'
             f'lat_it shape: {lat_it.shape}\n'
             f'lon_it shape: {lon_it.shape}\n'
+            f'lat_it min: {lat_it.min():.4f}, max: {lat_it.max():.4f}, cent: {lat_it.mean():.4f}\n'
+            f'lon_it min: {lon_it.min():.4f}, max: {lon_it.max():.4f}, cent: {lon_it.mean():.4f}\n'
             f'---------------------------------\n'
             f'Output Values:\n'
             f'xi shape: {xi.shape}, eta shape: {eta.shape}\n'
             f'xi min: {xi.min():.4f}, xi max: {xi.max():.4f}, xi cent: {xi.mean():.4f}\n'
             f'eta min: {eta.min():.4f}, eta max: {eta.max():.4f}, eta cent: {eta.mean():.4f}\n'
-            f'field_x_int shape: {field_x_int.shape}\n'
-            f'field_y_int shape: {field_y_int.shape}\n'
-            f'field_z_int shape: {field_z_int.shape}\n'
-            f'filed_x_in min: {np.nanmin(field_x_int):.2f}, max: {np.nanmax(field_x_int):.2f}\n'
-            f'filed_y_in min: {np.nanmin(field_y_int):.2f}, max: {np.nanmax(field_y_int):.2f}\n'
-            f'filed_z_in min: {np.nanmin(field_z_int):.2f}, max: {np.nanmax(field_z_int):.2f}\n'
+            f'field_int shape: {field_int.shape}\n'
+            f'filed_in min: {np.nanmin(field_int):.2f}, max: {np.nanmax(field_int):.2f}\n'
         )
         print(debug_info)
 
-    return peff, lat_it, lon_it, latc, field_x_int, field_y_int, field_z_int
+    return peff, lat_it, lon_it, latc, field_int.T
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -432,7 +426,7 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False, fix_na
     >>> fy = field_hor * np.cos(azimuth * np.pi / 180.0)
     >>> fx = -field_hor * np.sin(azimuth * np.pi / 180.0)
     >>> delta_l = 0.03
-    >>> bx, by, bz = bvec2cea(file.header, fx.T, fy.T, fz.T, delta_l)
+    >>> bx, by, bz = bvec2cea(file.header, fx, fy, fz, delta_l)
 
     :Authors:
         Carlos Diaz (ISP/SU 2020), Gregal Vissers (ISP/SU 2020)
@@ -440,8 +434,9 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False, fix_na
     """
 
     # Map projection
-    peff, lat_it, lon_it, latc, field_x_int, field_y_int, field_z_int = remap2cea(
-        dict_header, field_x, field_y, field_z, deltal, debug=debug)
+    peff, lat_it, lon_it, latc, field_x_int = remap2cea(dict_header, field_x, deltal, debug=debug)
+    _, _, _, _, field_y_int = remap2cea(dict_header, field_y, deltal, debug=debug)
+    _, _, _, _, field_z_int = remap2cea(dict_header, field_z, deltal, debug=debug)
 
     if debug:
         debug_info = (
@@ -458,7 +453,7 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False, fix_na
 
     # Vector transformation
     field_x_h, field_y_h, field_z_h = vector_transformation(
-        peff, lat_it, lon_it, latc, field_x_int, field_y_int, field_z_int, lat_in_rad=True, debug=debug)
+        peff, lat_it, lon_it, latc, field_x_int.T, field_y_int.T, field_z_int.T, lat_in_rad=True, debug=debug)
 
     if fix_nan:
         field_x_h = fix_nan_by_interpolation(field_x_h)
@@ -504,4 +499,8 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False, fix_na
         print('---------------------------------')
         for key, value in wcs_header.items():
             print(f'{key}: {value}')
-    return field_x_h.T, field_y_h.T, field_z_h.T, wcs_header
+    # Return the magnetic field components and the WCS header
+    fx = field_x_h.T   # positive towards west
+    fy = -field_y_h.T  # positive towards south
+    fz = field_z_h.T   # positive towards earth
+    return fx, fy, fz, wcs_header
