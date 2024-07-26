@@ -1,10 +1,11 @@
 import numpy as np
-from sunpy.map import make_fitswcs_header, header_helper
+from sunpy.map import make_fitswcs_header, header_helper, Map
 from sunpy.coordinates import frames
 from astropy.coordinates import SkyCoord
 from sunpy.coordinates import get_body_heliographic_stonyhurst
 import astropy.units as u
 import interpolate2d
+from sunpy.coordinates import sun
 from scipy.interpolate import griddata
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -504,3 +505,176 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False, fix_na
     fy = -field_y_h.T  # positive towards south
     fz = field_z_h.T   # positive towards earth
     return fx, fy, fz, wcs_header
+
+
+def get_wcs_info(map, verbose=False):
+    """
+    Extract WCS information from a SunPy map object.
+
+    Parameters
+    ----------
+    map : sunpy.map.Map
+        The SunPy map object from which to extract WCS information.
+    verbose : bool, optional
+        If True, prints the WCS dictionary. Default is False.
+
+    Returns
+    -------
+    wcs_dict : dict
+        Dictionary containing WCS information.
+
+    # Example usage:
+    wcs_dict = extract_wcs_info(map, verbose=True)
+    """
+    # Extracting the WCS information from the map metadata
+    dateobs = map.meta['date-obs']
+    cdelt1 = map.scale.axis1
+    cdelt2 = map.scale.axis2  # cdelt2 = cdelt1, if not specified
+    crota2 = map.meta['CROTA2']
+    naxis1 = map.data.shape[1]
+    naxis2 = map.data.shape[0]
+    center = map.center
+
+    # Get the coordinates of the bottom left and top right corners of the map
+    tx1 = center.Tx + ((naxis1 - 1) / 2.0) * u.pix * cdelt1
+    ty1 = center.Ty + ((naxis2 - 1) / 2.0) * u.pix * cdelt2
+    tx2 = center.Tx - ((naxis1 - 1) / 2.0) * u.pix * cdelt1
+    ty2 = center.Ty - ((naxis2 - 1) / 2.0) * u.pix * cdelt2
+
+    blc_hpc = SkyCoord(tx1, ty1, obstime=dateobs, observer='earth', frame=frames.Helioprojective)
+    trc_hpc = SkyCoord(tx2, ty2, obstime=dateobs, observer='earth', frame=frames.Helioprojective)
+
+    # Convert the bottom left and top right coordinates to Heliographic Carrington
+    blc_carr = blc_hpc.transform_to(frames.HeliographicCarrington)
+    trc_carr = trc_hpc.transform_to(frames.HeliographicCarrington)
+
+    # Get the center of the solar disk in Helioprojective and Heliographic Carrington coordinates
+    disc_center_hpc = SkyCoord(0 * u.arcsec, 0 * u.arcsec, obstime=dateobs,
+                               observer='earth', frame=frames.Helioprojective)
+    disc_center_carr = disc_center_hpc.transform_to(frames.HeliographicCarrington)
+    r_sun = sun.angular_radius(dateobs).value
+
+    # Calculate the minimum and maximum longitude and latitude of the map
+    lon_min = min(blc_carr.lon.value - disc_center_carr.lon.value, trc_carr.lon.value - disc_center_carr.lon.value)
+    lon_max = max(blc_carr.lon.value - disc_center_carr.lon.value, trc_carr.lon.value - disc_center_carr.lon.value)
+    lat_min = min(blc_carr.lat.value, trc_carr.lat.value)
+    lat_max = max(blc_carr.lat.value, trc_carr.lat.value)
+
+    # Create a dictionary with the WCS information
+    wcs_dict = {}
+    wcs_dict['CRPIX1'] = (blc_hpc.Tx / cdelt1 + 1 * u.pix).value
+    wcs_dict['CRPIX2'] = (blc_hpc.Ty / cdelt1 + 1 * u.pix).value
+    wcs_dict['CDELT1'] = cdelt1.value
+    wcs_dict['CROTA2'] = crota2
+    wcs_dict['NAXIS1'] = naxis1
+    wcs_dict['NAXIS2'] = naxis2
+    wcs_dict['CRLN_OBS'] = disc_center_carr.lon.value
+    wcs_dict['CRLT_OBS'] = disc_center_carr.lat.value
+    wcs_dict['LONDTMIN'] = lon_min
+    wcs_dict['LONDTMAX'] = lon_max
+    wcs_dict['LATDTMIN'] = lat_min
+    wcs_dict['LATDTMAX'] = lat_max
+    wcs_dict['RSUN_OBS'] = r_sun
+    wcs_dict['DATE-OBS'] = dateobs
+
+    # Print the WCS dictionary if verbose is True
+    if verbose:
+        for key, value in wcs_dict.items():
+            if key != 'DATE-OBS':
+                print(f"{key}: {value:.4f}")
+            else:
+                print(f"{key}: {value}")
+
+    return wcs_dict
+
+
+def make_map(data, crval1, crval2, cdelt1, crota2, date_obs,
+             cdelt2=None, ctype1='HPLN-TAN', ctype2='HPLT-TAN', telescope='SDO',
+             instrument='HMI', wavelength=6173, verbose=False):
+    """
+    Generate the FITS WCS header from the given WCS information.
+
+    Parameters
+    ----------
+   data: np.ndarray
+        2D array with the data.
+    crval1 : float
+        Patch center in arcseconds (longitude).
+    crval2 : float
+        Patch center in arcseconds (latitude).
+    cdelt1 : float
+        Arcseconds per pixel.
+    crota2 : float
+        Rotation of solar north in degrees.
+    date_obs : str
+        Observation date in 'YYYY-MM-DDTHH:MM:SS' format.
+    ctype1 : str, optional
+        Type of coordinate along the X-axis. Default is 'HPLN-TAN'.
+    ctype2 : str, optional
+        Type of coordinate along the Y-axis. Default is 'HPLT-TAN'.
+    telescope : str, optional
+        Name of the telescope. Default is 'SDO'.
+    instrument : str, optional
+        Name of the instrument. Default is 'HMI'.
+    wavelength : int, optional
+        Observation wavelength in angstroms. Default is 6173.
+    verbose : bool, optional
+        If True, prints the WCS header. Default is False.
+
+    Returns
+    -------
+    header : sunpy.map.header
+        Generated FITS WCS header.
+
+    # Example usage:
+    data = np.random.rand(288, 472)
+    crval1 = -495
+    crval2 = 310
+    cdelt1 = 0.504
+    crota2 = 180.0
+    date_obs = '2020-08-07T06:00:00'
+    my_header = generate_fitswcs_header(data, crval1, crval2, cdelt1, crota2, date_obs, verbose=True)
+    sunpy_map = sunpy.map.Map(data, my_header)
+    sunpy_map.peek()
+    """
+    if cdelt2 is None:
+        cdelt2 = cdelt1  # cdelt2 is the same as cdelt1
+
+    # Get the shape of the data array
+    naxis2, naxis1 = data.shape
+
+    # Define the WCS metadata
+    map_meta = {
+        'crval1': crval1,
+        'crval2': crval2,
+        'cdelt1': cdelt1,
+        'cdelt2': cdelt2,
+        'crota2': crota2,
+        'date-obs': date_obs,
+        'ctype1': ctype1,
+        'ctype2': ctype2,
+        'crpix1': (naxis1 + 1) / 2,
+        'crpix2': (naxis2 + 1) / 2,
+        'naxis1': naxis1,
+        'naxis2': naxis2
+    }
+
+    # Create the coordinate for the reference pixel
+    coord = SkyCoord(map_meta['crval1'] * u.arcsec, map_meta['crval2'] * u.arcsec,
+                     obstime=map_meta['date-obs'], observer='earth', frame=frames.Helioprojective)
+
+    # Generate the FITS WCS header
+    header = make_fitswcs_header((naxis2, naxis1), coord,
+                                 reference_pixel=[map_meta['crpix1'], map_meta['crpix2']] * u.pixel,
+                                 scale=[map_meta['cdelt1'], map_meta['cdelt2']] * u.arcsec / u.pixel,
+                                 telescope=telescope, instrument=instrument,
+                                 rotation_angle=map_meta['crota2'] * u.deg,
+                                 wavelength=wavelength * u.angstrom)
+    # Add the crota2 keyword to the header
+    header['crota2'] = crota2
+    if verbose:
+        print("Generated FITS WCS Header:")
+        for key, value in header.items():
+            print(f"{key}: {value}")
+    sunpy_map = Map(data, header)
+    return sunpy_map
