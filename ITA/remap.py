@@ -1,6 +1,11 @@
 import numpy as np
+from sunpy.map import make_fitswcs_header, header_helper
+from sunpy.coordinates import frames
+from astropy.coordinates import SkyCoord
+from sunpy.coordinates import get_body_heliographic_stonyhurst
+import astropy.units as u
 import interpolate2d
-
+from scipy.interpolate import griddata
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
@@ -60,31 +65,24 @@ def sphere2img(lat, lon, latc, lonc, xcenter, ycenter, rsun, peff, debug=False):
 
     if debug:
         debug_info = (
-            f'Debug Information:\n'
+            f'Debug Information (sphere2img):\n'
             f'---------------------------------\n'
             f'Input Parameters:\n'
-            f'Latitude: {lat}\n'
-            f'Longitude: {lon}\n'
-            f'Center Latitude: {latc}\n'
-            f'Center Longitude: {lonc}\n'
-            f'Image Center (x, y): ({xcenter}, {ycenter})\n'
-            f'Solar Radius: {rsun}\n'
-            f'Position Angle (peff): {peff}\n'
-            f'---------------------------------\n'
-            f'Intermediate Calculations:\n'
-            f'sin(latc): {sin_latc}, cos(latc): {cos_latc}\n'
-            f'sin(lat): {sin_lat}, cos(lat): {cos_lat}\n'
-            f'cos(lat - lonc): {cos_lat_lon}\n'
-            f'cos(cang): {cos_cang}\n'
-            f'Radius (r): {r}\n'
-            f'xr: {xr}\n'
-            f'yr: {yr}\n'
-            f'cos(peff): {cospa}, sin(peff): {sinpa}\n'
+            f'Longitude shape: {lon.shape}\n'
+            f'Latitude shape: {lat.shape}\n'
+            f'Longitude min, max, cent: {lon.min():.4f}, {lon.max():.4f}, {lon.mean():.4f} (radians)\n'
+            f'Latitude min, max , cent: {lat.min():.4f}, {lat.max():.4f}, {lat.mean():.4f} (radians)\n'
+            f'Delta lon: {lon.max()-lon.min():.4f}, Delta lat: {lat.max()-lat.min():.4f}\n'
+            f'Disc Center Longitude: {lonc:.4f} (radians)\n'
+            f'Disc Center Latitude: {latc:.4f} (radians)\n'
+            f'Image Center (x, y): ({xcenter:.4f}, {ycenter:.4f})\n'
+            f'Solar Radius: {rsun:.4f}\n'
+            f'Position Angle (peff): {peff:.4f}\n'
             f'---------------------------------\n'
             f'Output Values:\n'
             f'xi shape: {xi.shape}, eta shape: {eta.shape}\n'
-            f'xi min: {xi.min()}, xi max: {xi.max()}\n'
-            f'eta min: {eta.min()}, eta max: {eta.max()}\n'
+            f'xi min: {xi.min():.4f}, xi max: {xi.max():.4f}, xi center: {xi.mean():.4f}\n'
+            f'eta min: {eta.min():.4f}, eta max: {eta.max():.4f}, eta center: {eta.mean():.4f}\n'
         )
         print(debug_info)
 
@@ -101,20 +99,24 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
     dict_header : dictionary
         Header with information of the observation. It works with a SDO header
         or it can be created from other data. It should include:
+
         dict_header = {
-            'CRLT_OBS': float,
-            'RSUN_OBS': float,
-            'CROTA2': float,
-            'CDELT1': float,
             'CRPIX1': float,
             'CRPIX2': float,
-            'LATDTMAX': float,
+            'CROTA2': float,
+            'CDELT1': float,
+            'NAXIS1': float,
+            'NAXIS2': float,
+            'LONDTMIN': float,
             'LONDTMAX': float,
             'LATDTMIN': float,
-            'LONDTMIN': float,
-            'NAXIS1': float,
-            'NAXIS2': float
-        }
+            'LATDTMAX': float,
+            'CRLN_OBS': float,
+            'CRLT_OBS': float,
+            'RSUN_OBS': float,
+            'DATE-OBS': str
+            }
+
         They should follow the same definition as given for SDO data:
         https://www.lmsal.com/sdodocs/doc?cmd=dcur&proj_num=SDOD0019&file_type=pdf
 
@@ -133,11 +135,23 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
     :Authors:
         Carlos Diaz (ISP/SU 2020), Gregal Vissers (ISP/SU 2020)
     """
+    if debug:
+        print('Input Header Information:')
+        print('---------------------------------')
+        header_keys = ['CRPIX1', 'CRPIX2', 'CROTA2', 'CDELT1', 'NAXIS1', 'NAXIS2',
+                       'LONDTMIN', 'LONDTMAX', 'LATDTMIN', 'LATDTMAX', 'CRLN_OBS', 'CRLT_OBS', 'RSUN_OBS', 'DATE-OBS']
+        for key in header_keys:
+            if key != 'DATE-OBS':
+                print(f'{key}: {dict_header[key]:.4f}')
+            else:
+                print(f'{key}: {dict_header[key]}')
+        print('---------------------------------\n')
+
     # Latitude at disk center [rad]
     latc = dict_header['CRLT_OBS']*np.pi/180.
     # B0 = np.copy(latc)
     # Longitude at disk center [rad]. The output is in Carrington coordinates. We use central meridian
-    lonc = 0.0
+    lonc = 0.0  # we are already subtracting CRLN_OBS when passing the input
     # L0 = 0.0
     rsun = dict_header['RSUN_OBS']
 
@@ -168,7 +182,7 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
 
     lon_center = (dict_header['LONDTMAX'] + dict_header['LONDTMIN']) / 2. * np.pi/180.0
     lat_center = (dict_header['LATDTMAX'] + dict_header['LATDTMIN']) / 2. * np.pi/180.0
-    # print(lat_cesnter,latitude_out,f[1].header['LATDTMIN'],f[1].header['LATDTMAX'])
+    # print(lat_center,latitude_out,f[1].header['LATDTMIN'],f[1].header['LATDTMAX'])
 
     x_out = (np.arange(nx_out)-(nx_out-1)/2.)*dl
     y_out = (np.arange(ny_out)-(ny_out-1)/2.)*dl
@@ -182,7 +196,7 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
     lon_it = np.arcsin((np.sqrt(1.0-y_it**2)*np.sin(x_it)) / np.cos(lat_it)) + lon_center
 
     # Heliographic coordinate to CCD coordinate
-    xi, eta = sphere2img(lat_it, lon_it, latc, lonc, xcenter, ycenter, rsun_px, peff)
+    xi, eta = sphere2img(lat_it, lon_it, latc, lonc, xcenter, ycenter, rsun_px, peff, debug=debug)
 
     x = np.arange(dict_header['NAXIS1'])
     y = np.arange(dict_header['NAXIS2'])
@@ -195,43 +209,41 @@ def remap2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
     field_z_int = interpolate2d.interpolate2d(x, y, field_z, xi_eta).reshape((nlon_out, nlat_out))
 
     if debug:
+        print('\nDebug Information (remap2cea):')
         debug_info = (
-            f'Debug Information:\n'
             f'---------------------------------\n'
             f'Input Parameters:\n'
-            f'dict_header: {dict_header}\n'
             f'field_x shape: {field_x.shape}\n'
             f'field_y shape: {field_y.shape}\n'
             f'field_z shape: {field_z.shape}\n'
             f'deltal: {deltal}\n'
             f'---------------------------------\n'
             f'Calculated Parameters:\n'
-            f'latc: {latc} (radians)\n'
-            f'lonc: {lonc} (radians)\n'
-            f'rsun: {rsun}\n'
-            f'peff: {peff} (radians)\n'
-            f'dx_arcsec: {dx_arcsec}\n'
-            f'rsun_px: {rsun_px}\n'
-            f'xcenter: {xcenter}\n'
-            f'ycenter: {ycenter}\n'
+            f'latc: {latc:.4f} (radians)\n'
+            f'lonc: {lonc:.4f} (radians)\n'
+            f'rsun: {rsun:.4f}\n'
+            f'peff: {peff:.4f} (radians)\n'
+            f'dx_arcsec: {dx_arcsec:.4f}\n'
+            f'rsun_px: {rsun_px:.4f}\n'
+            f'xcenter: {xcenter:.4f}\n'
+            f'ycenter: {ycenter:.4f}\n'
             f'nlat_out: {nlat_out}\n'
             f'nlon_out: {nlon_out}\n'
-            f'lon_center: {lon_center} (radians)\n'
-            f'lat_center: {lat_center} (radians)\n'
-            f'x_out: {x_out}\n'
-            f'y_out: {y_out}\n'
-            f'x_it: {x_it}\n'
-            f'y_it: {y_it}\n'
+            f'lon_center: {lon_center:.4f} (radians)\n'
+            f'lat_center: {lat_center:.4f} (radians)\n'
             f'lat_it shape: {lat_it.shape}\n'
             f'lon_it shape: {lon_it.shape}\n'
             f'---------------------------------\n'
             f'Output Values:\n'
             f'xi shape: {xi.shape}, eta shape: {eta.shape}\n'
-            f'xi min: {xi.min()}, xi max: {xi.max()}\n'
-            f'eta min: {eta.min()}, eta max: {eta.max()}\n'
+            f'xi min: {xi.min():.4f}, xi max: {xi.max():.4f}, xi cent: {xi.mean():.4f}\n'
+            f'eta min: {eta.min():.4f}, eta max: {eta.max():.4f}, eta cent: {eta.mean():.4f}\n'
             f'field_x_int shape: {field_x_int.shape}\n'
             f'field_y_int shape: {field_y_int.shape}\n'
             f'field_z_int shape: {field_z_int.shape}\n'
+            f'filed_x_in min: {np.nanmin(field_x_int):.2f}, max: {np.nanmax(field_x_int):.2f}\n'
+            f'filed_y_in min: {np.nanmin(field_y_int):.2f}, max: {np.nanmax(field_y_int):.2f}\n'
+            f'filed_z_in min: {np.nanmin(field_z_int):.2f}, max: {np.nanmax(field_z_int):.2f}\n'
         )
         print(debug_info)
 
@@ -283,51 +295,95 @@ def vector_transformation(peff, latitude_out, longitude_out, B0, field_x_cea,
     # field_x_h positive towards west
 
     field_y_h *= -1.0
-
+    field_x_h_min = np.nanmin(field_x_h)
+    field_x_h_max = np.nanmax(field_x_h)
+    field_y_h_min = np.nanmin(field_y_h)
+    field_y_h_max = np.nanmax(field_y_h)
+    field_z_h_min = np.nanmin(field_z_h)
+    field_z_h_max = np.nanmax(field_z_h)
     if debug:
         debug_info = (
-            f'Debug Information:\n'
+            f'Debug Information (vector_transformation):\n'
             f'---------------------------------\n'
             f'Input Parameters:\n'
-            f'peff: {peff}\n'
-            f'latitude_out: {latitude_out}\n'
-            f'longitude_out: {longitude_out}\n'
-            f'B0: {B0}\n'
+            f'peff: {peff:.4f}\n'
+            f'latitude_out shape: {latitude_out.shape}\n'
+            f'longitude_out shape: {longitude_out.shape}\n'
+            f'B0: {B0:.4f}\n'
             f'field_x_cea shape: {field_x_cea.shape}\n'
             f'field_y_cea shape: {field_y_cea.shape}\n'
             f'field_z_cea shape: {field_z_cea.shape}\n'
-            f'lat_in_rad: {lat_in_rad}\n'
-            f'---------------------------------\n'
-            f'Calculated Parameters:\n'
-            f'BB: {BB}\n'
-            f'LL: {LL}\n'
-            f'Ldif: {Ldif}\n'
-            f'a11: {a11}\n'
-            f'a12: {a12}\n'
-            f'a13: {a13}\n'
-            f'a21: {a21}\n'
-            f'a22: {a22}\n'
-            f'a23: {a23}\n'
-            f'a31: {a31}\n'
-            f'a32: {a32}\n'
-            f'a33: {a33}\n'
             f'---------------------------------\n'
             f'Output Values:\n'
             f'field_x_h shape: {field_x_h.shape}\n'
             f'field_y_h shape: {field_y_h.shape}\n'
             f'field_z_h shape: {field_z_h.shape}\n'
-            f'field_x_h min: {field_x_h.min()}, max: {field_x_h.max()}\n'
-            f'field_y_h min: {field_y_h.min()}, max: {field_y_h.max()}\n'
-            f'field_z_h min: {field_z_h.min()}, max: {field_z_h.max()}\n'
+            f'field_x_h min: {field_x_h_min:.2f}, max: {field_x_h_max:.2f}\n'
+            f'field_y_h min: {field_y_h_min:.2f}, max: {field_y_h_max:.2f}\n'
+            f'field_z_h min: {field_z_h_min:.2f}, max: {field_z_h_max:.2f}\n'
         )
         print(debug_info)
 
     return field_x_h, field_y_h, field_z_h
 
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+def fix_nan_by_interpolation(data_array, methods=['nearest', 'linear']):
+    """
+    Fixes NaN regions in the input array by interpolation.
+
+    Parameters
+    ----------
+    data_array : np.ndarray
+        2D array with some NaN regions that need to be fixed.
+    methods : list of str, optional
+        List of interpolation methods to use. The first method is used for
+        initial interpolation, and the second method is used for any remaining
+        NaNs. Options are:
+        - 'linear': Linear interpolation (default)
+        - 'nearest': Nearest-neighbor interpolation
+        - 'cubic': Cubic interpolation (only works for 1D and 2D data)
+        Default is ['linear', 'nearest'].
+
+    Returns
+    -------
+    np.ndarray
+        Array with NaN regions fixed by interpolation.
+    """
+    # Ensure the methods list has at least two elements
+    if len(methods) < 2:
+        raise ValueError("Methods list must contain at least two interpolation methods.")
+
+    # Get the shape of the data array
+    rows, cols = data_array.shape
+
+    # Create a mesh grid
+    X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
+
+    # Mask NaN values
+    nan_mask = np.isnan(data_array)
+    valid_x = X[~nan_mask]
+    valid_y = Y[~nan_mask]
+    valid_data = data_array[~nan_mask]
+
+    # Interpolation using the first method
+    interpolated_data = griddata((valid_x, valid_y), valid_data, (X, Y), method=methods[0])
+
+    # Fill any remaining NaNs using the second method
+    remaining_nan_mask = np.isnan(interpolated_data)
+    if np.any(remaining_nan_mask):
+        interpolated_data[remaining_nan_mask] = griddata(
+            (valid_x, valid_y), valid_data, (X[remaining_nan_mask], Y[remaining_nan_mask]), method=methods[1]
+        )
+
+    return interpolated_data
+
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
+
+def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False, fix_nan=False):
     """Transformation to Cylindrical equal area projection (CEA) from CCD
     detector as it is done with SHARPs according to Xudong Sun (2018).
 
@@ -351,8 +407,10 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
             'LONDTMAX': float,
             'LATDTMIN': float,
             'LATDTMAX': float,
+            'CRLN_OBS': float,
             'CRLT_OBS': float,
-            'RSUN_OBS': float
+            'RSUN_OBS': float,
+            'DATE-OBS': str
             }
 
         They should follow the same definition as given for SDO data:
@@ -391,7 +449,7 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
             f'---------------------------------\n'
             f'peff: {peff}\n'
             f'lat_it shape: {lat_it.shape}, lon_it shape: {lon_it.shape}\n'
-            f'latc: {latc}\n'
+            f'latc: {latc:.4f}\n'
             f'field_x_int shape: {field_x_int.shape}\n'
             f'field_y_int shape: {field_y_int.shape}\n'
             f'field_z_int shape: {field_z_int.shape}\n'
@@ -401,6 +459,11 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
     # Vector transformation
     field_x_h, field_y_h, field_z_h = vector_transformation(
         peff, lat_it, lon_it, latc, field_x_int, field_y_int, field_z_int, lat_in_rad=True, debug=debug)
+
+    if fix_nan:
+        field_x_h = fix_nan_by_interpolation(field_x_h)
+        field_y_h = fix_nan_by_interpolation(field_y_h)
+        field_z_h = fix_nan_by_interpolation(field_z_h)
 
     if debug:
         debug_info = (
@@ -412,4 +475,33 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False):
         )
         print(debug_info)
 
-    return field_x_h, field_y_h, field_z_h
+    # Create the WCS header and return the magnetic field components
+    londtmax = dict_header['LONDTMAX']
+    londtmin = dict_header['LONDTMIN']
+    latdtmax = dict_header['LATDTMAX']
+    latdtmin = dict_header['LATDTMIN']
+    crln_obs = dict_header['CRLN_OBS']
+    # crlt_obs = dict_header['CRLT_OBS']
+    dateobs = dict_header['DATE-OBS']
+    lon_c = (londtmax - londtmin) / 2.0 + londtmin + crln_obs
+    lat_c = (latdtmax - latdtmin) / 2.0 + latdtmin  # + crlt_obs
+    ref_coord = SkyCoord(lon_c*u.deg, lat_c*u.deg, obstime=dateobs, frame=frames.HeliographicCarrington)
+    scale = [deltal, deltal] * u.deg/u.pixel
+    wcs_header = make_fitswcs_header(field_z_h.T, ref_coord, scale=scale)
+    wcs_header['CRLN_OBS'] = dict_header['CRLN_OBS']
+    wcs_header['CRLT_OBS'] = dict_header['CRLT_OBS']
+    wcs_header['RSUN_OBS'] = dict_header['RSUN_OBS']
+
+    earth_observer = get_body_heliographic_stonyhurst("earth", dateobs)
+    hgln_dict = header_helper.get_observer_meta(earth_observer)
+    wcs_header['HGLN_OBS'] = hgln_dict['hgln_obs']
+    wcs_header['HGLT_OBS'] = hgln_dict['hglt_obs']
+    wcs_header['DSUN_OBS'] = hgln_dict['dsun_obs']
+
+    if debug:
+        # print the WCS header
+        print('WCS Header:')
+        print('---------------------------------')
+        for key, value in wcs_header.items():
+            print(f'{key}: {value}')
+    return field_x_h.T, field_y_h.T, field_z_h.T, wcs_header
