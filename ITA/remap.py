@@ -93,7 +93,7 @@ def sphere2img(lat, lon, latc, lonc, xcenter, ycenter, rsun, peff, debug=False):
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-def remap2cea(dict_header, field, deltal, debug=False, fix_nan=False):
+def remap2cea(dict_header, field, deltal=None, debug=False, fix_nan=False):
     """Map projection of the original input into the cylindical equal area system (CEA).
 
     Parameters
@@ -138,6 +138,7 @@ def remap2cea(dict_header, field, deltal, debug=False, fix_nan=False):
 
     :Authors:
         Carlos Diaz (ISP/SU 2020), Gregal Vissers (ISP/SU 2020)
+    :Modified by: Avijeet Prasad to adapt to SST datasets (2024)
     """
     # Transpose the input array
     field = field.T
@@ -147,6 +148,13 @@ def remap2cea(dict_header, field, deltal, debug=False, fix_nan=False):
             f"Input field shape: {field.shape} and the header values "
             f"NAXIS1: {dict_header['NAXIS1']} and NAXIS2: {dict_header['NAXIS2']} do not match."
         )
+
+    # Get the delta longitude by transforming the pixel size to heliographic coordinates
+    if deltal is None:
+        cdel_hpc = SkyCoord(dict_header['CDELT1']*u.arcsec, dict_header['CDELT1']*u.arcsec,
+                            obstime=dict_header['DATE-OBS'], observer='earth', frame=frames.Helioprojective)
+        cdel_hgs = cdel_hpc.transform_to(frames.HeliographicStonyhurst)
+        deltal = cdel_hgs.lon.value
 
     if debug:
         print('Input Header Information:')
@@ -438,7 +446,7 @@ def fix_nan_by_interpolation(data_array, methods=['nearest', 'linear']):
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False, fix_nan=False):
+def bvec2cea(dict_header, field_x, field_y, field_z, deltal=None, debug=False, fix_nan=False):
     """Transformation to Cylindrical equal area projection (CEA) from CCD
     detector as it is done with SHARPs according to Xudong Sun (2018).
 
@@ -491,8 +499,15 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False, fix_na
 
     :Authors:
         Carlos Diaz (ISP/SU 2020), Gregal Vissers (ISP/SU 2020)
-
+    :Modified by: Avijeet Prasad to adapt to SST datasets (2024)
     """
+
+    # Get the delta longitude by transforming the pixel size to heliographic coordinates
+    if deltal is None:
+        cdel_hpc = SkyCoord(dict_header['CDELT1']*u.arcsec, dict_header['CDELT1']*u.arcsec,
+                            obstime=dict_header['DATE-OBS'], observer='earth', frame=frames.Helioprojective)
+        cdel_hgs = cdel_hpc.transform_to(frames.HeliographicStonyhurst)
+        deltal = cdel_hgs.lon.value
 
     # Map projection
     field_x_map = remap2cea(dict_header, field_x, deltal, debug=debug)
