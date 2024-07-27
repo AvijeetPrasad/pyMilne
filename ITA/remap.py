@@ -139,6 +139,15 @@ def remap2cea(dict_header, field, deltal, debug=False, fix_nan=False):
     :Authors:
         Carlos Diaz (ISP/SU 2020), Gregal Vissers (ISP/SU 2020)
     """
+    # Transpose the input array
+    field = field.T
+
+    if field.shape[0] != int(dict_header['NAXIS1']) or field.shape[1] != int(dict_header['NAXIS2']):
+        raise ValueError(
+            f"Input field shape: {field.shape} and the header values "
+            f"NAXIS1: {dict_header['NAXIS1']} and NAXIS2: {dict_header['NAXIS2']} do not match."
+        )
+
     if debug:
         print('Input Header Information:')
         print('---------------------------------')
@@ -263,6 +272,7 @@ def remap2cea(dict_header, field, deltal, debug=False, fix_nan=False):
     wcs_header = make_fitswcs_header(field_out, ref_coord, scale=scale, projection_code='CEA')
 
     # Add observer information to the WCS header
+    wcs_header['CROTA2'] = dict_header['CROTA2']
     wcs_header['CRLN_OBS'] = dict_header['CRLN_OBS']
     wcs_header['CRLT_OBS'] = dict_header['CRLT_OBS']
     wcs_header['RSUN_OBS'] = dict_header['RSUN_OBS']
@@ -292,6 +302,17 @@ def vector_transformation(peff, latitude_out, longitude_out, B0, field_x_cea,
     Magnetic field transformation matrix (see Allen Gary & Hagyard 1990)
     [Eq 7 in https://arxiv.org/pdf/1309.2392.pdf]
     """
+
+    # Transpose the input arrays
+    field_x_cea = field_x_cea.T
+    field_y_cea = field_y_cea.T
+    field_z_cea = field_z_cea.T
+
+    if field_x_cea.shape != latitude_out.shape:
+        raise ValueError(
+            f"field_x_cea shape: {field_x_cea.shape} "
+            f"\tlatitude_out shape: {latitude_out.shape} do not match."
+        )
 
     nlat_out = len(latitude_out)
     nlon_out = len(longitude_out)
@@ -502,7 +523,7 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False, fix_na
 
     # Vector transformation
     field_x_h, field_y_h, field_z_h = vector_transformation(
-        peff, lat_it, lon_it, latc, field_x_int.T, field_y_int.T, field_z_int.T, lat_in_rad=True, debug=debug)
+        peff, lat_it, lon_it, latc, field_x_int, field_y_int, field_z_int, lat_in_rad=True, debug=debug)
 
     if fix_nan:
         field_x_h = fix_nan_by_interpolation(field_x_h)
