@@ -93,7 +93,7 @@ def sphere2img(lat, lon, latc, lonc, xcenter, ycenter, rsun, peff, debug=False):
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-def remap2cea(dict_header, field, deltal, debug=False):
+def remap2cea(dict_header, field, deltal, debug=False, fix_nan=False):
     """Map projection of the original input into the cylindical equal area system (CEA).
 
     Parameters
@@ -128,6 +128,8 @@ def remap2cea(dict_header, field, deltal, debug=False):
         Heliographic degrees in the rotated coordinate system. SHARP CEA pixels are 0.03
     debug : bool, optional
         If True, prints debug information (default is False).
+    fix_nan : bool, optional
+        If True, fixes NaN regions in the output array by interpolation (default is False).
 
     Returns
     -------
@@ -243,7 +245,43 @@ def remap2cea(dict_header, field, deltal, debug=False):
         )
         print(debug_info)
 
-    return peff, lat_it, lon_it, latc, field_int.T
+    field_out = field_int.T  # transpose the field_int array
+    if fix_nan:
+        field_out = fix_nan_by_interpolation(field_out)
+
+    # Create the WCS header
+    londtmax = dict_header['LONDTMAX']
+    londtmin = dict_header['LONDTMIN']
+    latdtmax = dict_header['LATDTMAX']
+    latdtmin = dict_header['LATDTMIN']
+    crln_obs = dict_header['CRLN_OBS']
+    dateobs = dict_header['DATE-OBS']
+    lon_c = (londtmax - londtmin) / 2.0 + londtmin + crln_obs
+    lat_c = (latdtmax - latdtmin) / 2.0 + latdtmin  # + crlt_obs
+    ref_coord = SkyCoord(lon_c*u.deg, lat_c*u.deg, obstime=dateobs, frame=frames.HeliographicCarrington)
+    scale = [deltal, deltal] * u.deg/u.pixel
+    wcs_header = make_fitswcs_header(field_out, ref_coord, scale=scale, projection_code='CEA')
+
+    # Add observer information to the WCS header
+    wcs_header['CRLN_OBS'] = dict_header['CRLN_OBS']
+    wcs_header['CRLT_OBS'] = dict_header['CRLT_OBS']
+    wcs_header['RSUN_OBS'] = dict_header['RSUN_OBS']
+    earth_observer = get_body_heliographic_stonyhurst("earth", dateobs)
+    hgln_dict = header_helper.get_observer_meta(earth_observer)
+    wcs_header['HGLN_OBS'] = hgln_dict['hgln_obs']
+    wcs_header['HGLT_OBS'] = hgln_dict['hglt_obs']
+    wcs_header['DSUN_OBS'] = hgln_dict['dsun_obs']
+
+    # Create a SunPy map object
+    field_map = Map(field_out, wcs_header)
+
+    # Add metadata to the map object
+    field_map.meta['peff'] = peff
+    field_map.meta['lon_it'] = lon_it
+    field_map.meta['lat_it'] = lat_it
+    field_map.meta['latc'] = latc
+
+    return field_map
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -436,16 +474,25 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False, fix_na
     """
 
     # Map projection
-    peff, lat_it, lon_it, latc, field_x_int = remap2cea(dict_header, field_x, deltal, debug=debug)
-    _, _, _, _, field_y_int = remap2cea(dict_header, field_y, deltal, debug=debug)
-    _, _, _, _, field_z_int = remap2cea(dict_header, field_z, deltal, debug=debug)
+    field_x_map = remap2cea(dict_header, field_x, deltal, debug=debug)
+    field_y_map = remap2cea(dict_header, field_y, deltal, debug=debug)
+    field_z_map = remap2cea(dict_header, field_z, deltal, debug=debug)
+
+    peff = field_x_map.meta['peff']
+    lon_it = field_x_map.meta['lon_it']
+    lat_it = field_x_map.meta['lat_it']
+    latc = field_x_map.meta['latc']
+
+    field_x_int = field_x_map.data
+    field_y_int = field_y_map.data
+    field_z_int = field_z_map.data
 
     if debug:
         debug_info = (
             f'Debug Information (remap2cea):\n'
             f'---------------------------------\n'
             f'peff: {peff}\n'
-            f'lat_it shape: {lat_it.shape}, lon_it shape: {lon_it.shape}\n'
+            f'lon_it shape: {lon_it.shape}, lat_it shape: {lat_it.shape}\n'
             f'latc: {latc:.4f}\n'
             f'field_x_int shape: {field_x_int.shape}\n'
             f'field_y_int shape: {field_y_int.shape}\n'
@@ -484,7 +531,7 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal, debug=False, fix_na
     lat_c = (latdtmax - latdtmin) / 2.0 + latdtmin  # + crlt_obs
     ref_coord = SkyCoord(lon_c*u.deg, lat_c*u.deg, obstime=dateobs, frame=frames.HeliographicCarrington)
     scale = [deltal, deltal] * u.deg/u.pixel
-    wcs_header = make_fitswcs_header(field_z_h.T, ref_coord, scale=scale)
+    wcs_header = make_fitswcs_header(field_z_h.T, ref_coord, scale=scale, projection_code='CEA')
     wcs_header['CRLN_OBS'] = dict_header['CRLN_OBS']
     wcs_header['CRLT_OBS'] = dict_header['CRLT_OBS']
     wcs_header['RSUN_OBS'] = dict_header['RSUN_OBS']
@@ -590,8 +637,8 @@ def get_wcs_info(map, verbose=False):
 
 
 def make_map(data, crval1, crval2, cdelt1, crota2, date_obs,
-             cdelt2=None, ctype1='HPLN-TAN', ctype2='HPLT-TAN', telescope='SDO',
-             instrument='HMI', wavelength=6173, verbose=False):
+             cdelt2=None, ctype1='HPLN-TAN', ctype2='HPLT-TAN', telescope=None,
+             instrument=None, wavelength=6173, verbose=False):
     """
     Generate the FITS WCS header from the given WCS information.
 
@@ -634,8 +681,7 @@ def make_map(data, crval1, crval2, cdelt1, crota2, date_obs,
     cdelt1 = 0.504
     crota2 = 180.0
     date_obs = '2020-08-07T06:00:00'
-    my_header = generate_fitswcs_header(data, crval1, crval2, cdelt1, crota2, date_obs, verbose=True)
-    sunpy_map = sunpy.map.Map(data, my_header)
+    sunpy_map = make_map(data, crval1, crval2, cdelt1, crota2, date_obs, verbose=True)
     sunpy_map.peek()
     """
     if cdelt2 is None:
@@ -660,17 +706,22 @@ def make_map(data, crval1, crval2, cdelt1, crota2, date_obs,
         'naxis2': naxis2
     }
 
-    # Create the coordinate for the reference pixel
-    coord = SkyCoord(map_meta['crval1'] * u.arcsec, map_meta['crval2'] * u.arcsec,
-                     obstime=map_meta['date-obs'], observer='earth', frame=frames.Helioprojective)
+    projection = ctype1.split('-')[1]
+    if ctype1 == 'HPLN-TAN':
+        # Create the coordinate for the reference pixel
+        coord = SkyCoord(map_meta['crval1'] * u.arcsec, map_meta['crval2'] * u.arcsec,
+                         obstime=map_meta['date-obs'], observer='earth', frame=frames.Helioprojective)
 
+    elif ctype1 == 'CRLN-CEA':
+        coord = SkyCoord(map_meta['crval1'] * u.deg, map_meta['crval2'] * u.deg,
+                         obstime=map_meta['date-obs'], observer='earth', frame=frames.HeliographicCarrington)
     # Generate the FITS WCS header
     header = make_fitswcs_header((naxis2, naxis1), coord,
                                  reference_pixel=[map_meta['crpix1'], map_meta['crpix2']] * u.pixel,
                                  scale=[map_meta['cdelt1'], map_meta['cdelt2']] * u.arcsec / u.pixel,
                                  telescope=telescope, instrument=instrument,
                                  rotation_angle=map_meta['crota2'] * u.deg,
-                                 wavelength=wavelength * u.angstrom)
+                                 wavelength=wavelength * u.angstrom, projection_code=projection)
     # Add the crota2 keyword to the header
     header['crota2'] = crota2
     if verbose:
@@ -681,15 +732,15 @@ def make_map(data, crval1, crval2, cdelt1, crota2, date_obs,
     return sunpy_map
 
 
-def plot_map_on_grid(map_obj, figsize=(8, 8), coord_limits=[-1024, 1024], limb_color='k', grid_color='black',
+def plot_map_on_grid(map, figsize=(8, 8), coord_limits=[-1024, 1024], limb_color='k', grid_color='black',
                      grid_alpha=0.5, grid_lw=0.5, coord_marker='o', coord_color='red', coord_size=0.01,
-                     vmin_percentile=0.5, vmax_percentile=99.5):
+                     vmin_percentile=0.5, vmax_percentile=99.5, cent_coord_size=0.5, return_fig=False):
     """
     Plot a SunPy map on a full solar grid.
 
     Parameters
     ----------
-    map_obj : sunpy.map.Map
+    map : sunpy.map.Map
         The SunPy map object to plot.
     figsize : tuple, optional
         Size of the figure. Default is (8, 8).
@@ -723,16 +774,17 @@ def plot_map_on_grid(map_obj, figsize=(8, 8), coord_limits=[-1024, 1024], limb_c
     # Example usage:
         # plot_full_solar_grid(bz_map)
     """
-    date = map_obj.date
-    scale = map_obj.scale
+    date = map.date
+    scale = map.scale
     data = np.full((10, 10), np.nan)
-    skycoord = SkyCoord(0*u.arcsec, 0*u.arcsec, obstime=date, observer='earth', frame=frames.Helioprojective)
+    cent_coord = SkyCoord(0*u.arcsec, 0*u.arcsec, obstime=date, observer='earth', frame=frames.Helioprojective)
     temp_header = make_fitswcs_header(
-        data, skycoord, scale=[scale.axis1.value, scale.axis2.value]*u.arcsec/u.pixel, reference_pixel=[0, 0]*u.pixel)
+        data, cent_coord, scale=[scale.axis1.value, scale.axis2.value]*u.arcsec/u.pixel, reference_pixel=[0, 0]*u.pixel)
     blank_map = Map(data, temp_header)
 
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(projection=blank_map)
+    map_center = map.center.transform_to(frames.Helioprojective(observer='earth', obstime=date))
     blank_map.plot(axes=ax)
     blank_map.draw_limb(axes=ax, color=limb_color)
     blank_map.draw_grid(axes=ax, color=grid_color, alpha=grid_alpha, lw=grid_lw, system='carrington')
@@ -741,8 +793,14 @@ def plot_map_on_grid(map_obj, figsize=(8, 8), coord_limits=[-1024, 1024], limb_c
     yc = coord_limits * u.arcsec
     coords = SkyCoord(xc, yc, frame=blank_map.coordinate_frame)
     ax.plot_coord(coords, coord_marker, color=coord_color, markersize=coord_size)
-
-    map_obj.plot(axes=ax, autoalign=True, zorder=1, vmin=np.nanpercentile(
-        map_obj.data, vmin_percentile), vmax=np.nanpercentile(map_obj.data, vmax_percentile))
-
-    return fig, ax
+    ax.plot_coord(cent_coord, coord_marker, color=coord_color, markersize=cent_coord_size)
+    ax.plot_coord(map_center, coord_marker, color='white', markersize=coord_size,
+                  label=f'Map: ({map_center.Tx.value:.0f}, {map_center.Ty.value:.0f})')
+    map.plot(axes=ax, autoalign=True, zorder=1, vmin=np.nanpercentile(
+        map.data, vmin_percentile), vmax=np.nanpercentile(map.data, vmax_percentile), title=date.iso[:-4])
+    ax.legend(loc="upper left", markerscale=coord_size, markerfirst=False, frameon=False)
+    plt.show()
+    if return_fig:
+        return fig, ax
+    else:
+        return None
