@@ -8,6 +8,7 @@ import interpolate2d
 from sunpy.coordinates import sun
 from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
+from copy import deepcopy
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
@@ -770,7 +771,8 @@ def make_map(data, crval1, crval2, cdelt1, crota2, date_obs,
 
 def plot_map_on_grid(map, figsize=(8, 8), coord_limits=[-1024, 1024], limb_color='k', grid_color='black',
                      grid_alpha=0.5, grid_lw=0.5, coord_marker='o', coord_color='red', coord_size=0.01,
-                     vmin_percentile=0.5, vmax_percentile=99.5, cent_coord_size=0.5, return_fig=False):
+                     vmin_percentile=0.5, vmax_percentile=99.5, cent_coord_size=0.5, return_fig=False,
+                     project_dc=False):
     """
     Plot a SunPy map on a full solar grid.
 
@@ -800,7 +802,8 @@ def plot_map_on_grid(map, figsize=(8, 8), coord_limits=[-1024, 1024], limb_color
         Percentile for the minimum data value to plot. Default is 0.5.
     vmax_percentile : float, optional
         Percentile for the maximum data value to plot. Default is 99.95.
-
+    project_dc : bool, optional
+        If True, project the map to disc center. Default is False.
     Returns
     -------
     fig : matplotlib.figure.Figure
@@ -814,12 +817,22 @@ def plot_map_on_grid(map, figsize=(8, 8), coord_limits=[-1024, 1024], limb_color
     scale = map.scale
     data = np.full((10, 10), np.nan)
     cent_coord = SkyCoord(0*u.arcsec, 0*u.arcsec, obstime=date, observer='earth', frame=frames.Helioprojective)
+    cent_crln = cent_coord.transform_to(frames.HeliographicCarrington)
     temp_header = make_fitswcs_header(
         data, cent_coord, scale=[scale.axis1.value, scale.axis2.value]*u.arcsec/u.pixel, reference_pixel=[0, 0]*u.pixel)
     blank_map = Map(data, temp_header)
 
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(projection=blank_map)
+    if project_dc:
+        # deepcopy the map to avoid changing the original map
+        map2 = deepcopy(map)
+        map2.meta['CRVAL1'] = cent_crln.lon.value
+        map2.meta['CRVAL2'] = cent_crln.lat.value
+        map2.meta['CRPIX1'] = (map2.meta['NAXIS1'] + 1) / 2.0
+        map2.meta['CRPIX2'] = (map2.meta['NAXIS2'] + 1) / 2.0
+        # Create a new map with the updated metadata
+        map2 = Map(map2.data, map2.meta)
     map_center = map.center.transform_to(frames.Helioprojective(observer='earth', obstime=date))
     blank_map.plot(axes=ax)
     blank_map.draw_limb(axes=ax, color=limb_color)
@@ -831,9 +844,12 @@ def plot_map_on_grid(map, figsize=(8, 8), coord_limits=[-1024, 1024], limb_color
     ax.plot_coord(coords, coord_marker, color=coord_color, markersize=coord_size)
     ax.plot_coord(cent_coord, coord_marker, color=coord_color, markersize=cent_coord_size)
     ax.plot_coord(map_center, coord_marker, color='white', markersize=coord_size,
-                  label=f'Map: ({map_center.Tx.value:.0f}, {map_center.Ty.value:.0f})')
+                  label=f'Map center: ({map_center.Tx.value:.0f}, {map_center.Ty.value:.0f})')
     map.plot(axes=ax, autoalign=True, zorder=1, vmin=np.nanpercentile(
         map.data, vmin_percentile), vmax=np.nanpercentile(map.data, vmax_percentile), title=date.iso[:-4])
+    if project_dc:
+        map2.plot(axes=ax, autoalign=True, zorder=1, vmin=np.nanpercentile(
+            map2.data, vmin_percentile), vmax=np.nanpercentile(map2.data, vmax_percentile), title=date.iso[:-4])
     ax.legend(loc="upper left", markerscale=coord_size, markerfirst=False, frameon=False)
     plt.show()
     if return_fig:
