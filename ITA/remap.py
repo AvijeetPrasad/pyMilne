@@ -94,7 +94,7 @@ def sphere2img(lat, lon, latc, lonc, xcenter, ycenter, rsun, peff, debug=False):
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-def remap2cea(dict_header, field, deltal=None, debug=False, fix_nan=False):
+def remap2cea(dict_header, field, deltal=None, debug=False, missing='nan'):
     """Map projection of the original input into the cylindical equal area system (CEA).
 
     Parameters
@@ -129,8 +129,13 @@ def remap2cea(dict_header, field, deltal=None, debug=False, fix_nan=False):
         Heliographic degrees in the rotated coordinate system. SHARP CEA pixels are 0.03
     debug : bool, optional
         If True, prints debug information (default is False).
-    fix_nan : bool, optional
-        If True, fixes NaN regions in the output array by interpolation (default is False).
+    missing: str/float, optional
+        The method to handle missing values. Options are:
+        - 'nan': Replace missing values with NaN (default)
+        - 'interpolate': Interpolate missing values
+        - 'nearest': Replace missing values with the nearest neighbor
+        - 'zero': Replace missing values with
+        - float: Replace missing values with the given value
 
     Returns
     -------
@@ -264,8 +269,14 @@ def remap2cea(dict_header, field, deltal=None, debug=False, fix_nan=False):
         print(debug_info)
 
     field_out = field_int.T  # transpose the field_int array
-    if fix_nan:
+    if isinstance(missing, float) or isinstance(missing, int):
+        field_out = np.nan_to_num(field_out, nan=missing)
+    elif missing == 'interpolate':
         field_out = fix_nan_by_interpolation(field_out)
+    elif missing == 'nearest':
+        field_out = np.nan_to_num(field_out, nan=np.nanmean(field_out))
+    elif missing == 'zero':
+        field_out = np.nan_to_num(field_out, nan=0.0)
 
     # Create the WCS header
     londtmax = dict_header['LONDTMAX']
@@ -447,7 +458,7 @@ def fix_nan_by_interpolation(data_array, methods=['nearest', 'linear']):
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-def bvec2cea(dict_header, field_x, field_y, field_z, deltal=None, debug=False, fix_nan=False):
+def bvec2cea(dict_header, field_x, field_y, field_z, deltal=None, debug=False, missing='nan'):
     """Transformation to Cylindrical equal area projection (CEA) from CCD
     detector as it is done with SHARPs according to Xudong Sun (2018).
 
@@ -482,6 +493,16 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal=None, debug=False, f
 
     deltal : float
         Heliographic degrees in the rotated coordinate system. SHARP CEA pixels are 0.03
+
+    debug : bool, optional
+        If True, prints debug information (default is False).
+    missing: str/float, optional
+        The method to handle missing values. Options are:
+        - 'nan': Replace missing values with NaN (default)
+        - 'interpolate': Interpolate missing values
+        - 'nearest': Replace missing values with the nearest neighbor
+        - 'zero': Replace missing values with zeros
+        - float: Replace missing values with the given value
 
     Returns
     -------
@@ -541,10 +562,23 @@ def bvec2cea(dict_header, field_x, field_y, field_z, deltal=None, debug=False, f
     field_x_h, field_y_h, field_z_h = vector_transformation(
         peff, lat_it, lon_it, latc, field_x_int, field_y_int, field_z_int, lat_in_rad=True, debug=debug)
 
-    if fix_nan:
+    # Handle missing values
+    if isinstance(missing, float) or isinstance(missing, int):
+        field_x_h = np.nan_to_num(field_x_h, nan=missing)
+        field_y_h = np.nan_to_num(field_y_h, nan=missing)
+        field_z_h = np.nan_to_num(field_z_h, nan=missing)
+    elif missing == 'interpolate':
         field_x_h = fix_nan_by_interpolation(field_x_h)
         field_y_h = fix_nan_by_interpolation(field_y_h)
         field_z_h = fix_nan_by_interpolation(field_z_h)
+    elif missing == 'nearest':
+        field_x_h = np.nan_to_num(field_x_h, nan=np.nanmean(field_x_h))
+        field_y_h = np.nan_to_num(field_y_h, nan=np.nanmean(field_y_h))
+        field_z_h = np.nan_to_num(field_z_h, nan=np.nanmean(field_z_h))
+    elif missing == 'zero':
+        field_x_h = np.nan_to_num(field_x_h, nan=0.0)
+        field_y_h = np.nan_to_num(field_y_h, nan=0.0)
+        field_z_h = np.nan_to_num(field_z_h, nan=0.0)
 
     if debug:
         debug_info = (
@@ -771,8 +805,8 @@ def make_map(data, crval1, crval2, cdelt1, crota2, date_obs,
 
 def plot_map_on_grid(map, figsize=(8, 8), coord_limits=[-1024, 1024], limb_color='k', grid_color='black',
                      grid_alpha=0.5, grid_lw=0.5, coord_marker='o', coord_color='red', coord_size=0.01,
-                     vmin_percentile=0.5, vmax_percentile=99.5, cent_coord_size=0.5, return_fig=False,
-                     project_dc=False):
+                     vmin_percentile=0.5, vmax_percentile=99.5, cent_coord_size=0.3, return_fig=False,
+                     project_dc=False, cmap='gray'):
     """
     Plot a SunPy map on a full solar grid.
 
@@ -804,6 +838,8 @@ def plot_map_on_grid(map, figsize=(8, 8), coord_limits=[-1024, 1024], limb_color
         Percentile for the maximum data value to plot. Default is 99.95.
     project_dc : bool, optional
         If True, project the map to disc center. Default is False.
+    cmap : str, optional
+        Colormap to use. Default is 'gray'.
     Returns
     -------
     fig : matplotlib.figure.Figure
@@ -843,13 +879,14 @@ def plot_map_on_grid(map, figsize=(8, 8), coord_limits=[-1024, 1024], limb_color
     coords = SkyCoord(xc, yc, frame=blank_map.coordinate_frame)
     ax.plot_coord(coords, coord_marker, color=coord_color, markersize=coord_size)
     ax.plot_coord(cent_coord, coord_marker, color=coord_color, markersize=cent_coord_size)
-    ax.plot_coord(map_center, coord_marker, color='white', markersize=coord_size,
+    ax.plot_coord(map_center, coord_marker, color=coord_color, markersize=cent_coord_size,
                   label=f'Map center: ({map_center.Tx.value:.0f}, {map_center.Ty.value:.0f})')
     map.plot(axes=ax, autoalign=True, zorder=1, vmin=np.nanpercentile(
-        map.data, vmin_percentile), vmax=np.nanpercentile(map.data, vmax_percentile), title=date.iso[:-4])
+        map.data, vmin_percentile), vmax=np.nanpercentile(map.data, vmax_percentile), title=date.iso[:-4], cmap=cmap)
     if project_dc:
         map2.plot(axes=ax, autoalign=True, zorder=1, vmin=np.nanpercentile(
-            map2.data, vmin_percentile), vmax=np.nanpercentile(map2.data, vmax_percentile), title=date.iso[:-4])
+            map2.data, vmin_percentile), vmax=np.nanpercentile(map2.data, vmax_percentile),
+            title=date.iso[:-4], cmap=cmap)
     ax.legend(loc="upper left", markerscale=coord_size, markerfirst=False, frameon=False)
     plt.show()
     if return_fig:
