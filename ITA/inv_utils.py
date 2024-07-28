@@ -21,6 +21,7 @@ import time
 import psutil
 import helita_io_lp as lp
 from get_fov_angle import fov_angle
+from matplotlib.ticker import MaxNLocator
 # Use the safe_import function to import custom modules safely
 # from load_env_and_set_pythonpath import safe_import
 # lp = safe_import('helita.io', 'lp')
@@ -1028,17 +1029,28 @@ def best_contrast_frame(data_cube, mask=None):
     return best_frame, best_index, contrasts
 
 
-def plot_contrast(contrasts, figsize=(10, 6)):
+def plot_contrast(contrasts, figsize=(10, 6), show_minor_grid=False, grid_color='gray', num_ticks=10, **kwargs):
     """Plot the contrast as a function of the time index."""
     plt.figure(figsize=figsize)
-    plt.plot(contrasts, marker='o')
+    plt.plot(contrasts, marker='o', **kwargs)
+
     # mark the frame with the best contrast with a red star
     best_index = np.argmax(contrasts)
-    plt.plot(best_index, contrasts[best_index], 'r', marker='o', markersize=6)
+    plt.plot(best_index, contrasts[best_index], 'r', marker='o', markersize=10)
+
     plt.title(f'Frame with Maximum Contrast: {best_index}')
     plt.xlabel('Time Index')
     plt.ylabel('Contrast')
-    plt.grid(True)
+    plt.grid(True, color=grid_color)
+
+    if show_minor_grid:
+        plt.minorticks_on()
+        plt.grid(which='both', linestyle='--', linewidth='0.5', color=grid_color)
+
+    # Set the number of ticks on the x-axis and y-axis
+    plt.gca().xaxis.set_major_locator(MaxNLocator(nbins=num_ticks))
+    plt.gca().yaxis.set_major_locator(MaxNLocator(nbins=num_ticks))
+
     plt.show()
 
 
