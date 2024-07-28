@@ -491,14 +491,14 @@ def plot_hist(data, bins=20, save_fig=False, figsize=(8, 8), vmin=None, vmax=Non
 
 def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=None, cutoff=0.001,
                fontsize=14, figname='image.pdf', cmap='Greys_r', title='Image', clip=False,
-               xrange=None, yrange=None, show_roi=False, grid=False, verbose=False):
+               xrange=None, yrange=None, show_roi=False, grid=False, verbose=False, aspect='equal'):
     fig, ax = plt.subplots(1, 1, figsize=figsize)
     ny, nx = data.shape  # Note: the shape is (ny, nx)
     extent = np.float32((0, nx, 0, ny)) * scale
     if clip:
         data = np.clip(data, a_min=vmin, a_max=vmax)
     img = ax.imshow(im.histo_opt(data, cutoff=cutoff), cmap=cmap, interpolation='nearest',
-                    aspect='equal', origin='lower', extent=extent, vmin=vmin, vmax=vmax)
+                    origin='lower', aspect=aspect, extent=extent, vmin=vmin, vmax=vmax)
     ax.tick_params(axis='both', which='major', labelsize=0.8 * fontsize)
     ax.set_xlabel('X [arcsec]', fontsize=fontsize)
     ax.set_ylabel('Y [arcsec]', fontsize=fontsize)
@@ -527,10 +527,10 @@ def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=No
     plt.show()
 
 
-def plot_images(data_list, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=None,
+def plot_images(data_list, scale=1, save_fig=False, figsize=None, vmin=None, vmax=None,
                 fontsize=12, figname='image.pdf', cmap='Greys_r', title=None, clip=False,
                 xrange=None, yrange=None, show_roi=False, grid=False, grid_shape=None, cb_pad=0.1,
-                fig_title='Image', verbose=False):
+                fig_title='Image', verbose=False, scale_unit=None, aspect='equal'):
     """
     Plots multiple images in a specified grid layout.
 
@@ -552,6 +552,8 @@ def plot_images(data_list, scale=1, save_fig=False, figsize=(8, 8), vmin=None, v
     - grid (bool): If True, show a grid on the images.
     - grid_shape (tuple): Shape of the grid (nrows, ncols).
     - cb_pad (float): Padding for the colorbar.
+    - scale_unit (str): Unit of the x and y axes.
+    - aspect (str): Aspect ratio of the image.
 
     Returns:
     - None
@@ -572,7 +574,9 @@ def plot_images(data_list, scale=1, save_fig=False, figsize=(8, 8), vmin=None, v
     # Set default grid shape if not provided
     if grid_shape is None:
         grid_shape = (1, num_images) if num_images > 1 else (1, 1)
-
+    # Set default figsize if not provided based on the grid shape
+    if figsize is None:
+        figsize = (6 * grid_shape[1], 6 * grid_shape[0])
     fig, axes = plt.subplots(grid_shape[0], grid_shape[1], figsize=figsize)
     axes = np.array(axes).flatten()  # Ensure axes is a flat array for easy iteration
 
@@ -587,11 +591,15 @@ def plot_images(data_list, scale=1, save_fig=False, figsize=(8, 8), vmin=None, v
         extent = np.float32((0, nx, 0, ny)) * scale
         if clip:
             data = np.clip(data, a_min=vmin[i], a_max=vmax[i])
-        img = ax.imshow(data, cmap=cmap[i], interpolation='nearest', aspect='equal',
-                        origin='lower', extent=extent, vmin=vmin[i], vmax=vmax[i])
+        img = ax.imshow(data, cmap=cmap[i], interpolation='nearest',
+                        origin='lower', aspect=aspect, extent=extent, vmin=vmin[i], vmax=vmax[i])
         ax.tick_params(axis='both', which='major', labelsize=0.8 * fontsize)
-        ax.set_xlabel('X [arcsec]', fontsize=fontsize)
-        ax.set_ylabel('Y [arcsec]', fontsize=fontsize)
+        if scale_unit is None:
+            ax.set_xlabel('X ', fontsize=fontsize)
+            ax.set_ylabel('Y ', fontsize=fontsize)
+        else:
+            ax.set_xlabel(f'X [{scale_unit}]', fontsize=fontsize)
+            ax.set_ylabel(f'Y [{scale_unit}]', fontsize=fontsize)
 
         # Check if xrange and yrange are provided for each subplot
         if show_roi and xrange is not None and yrange is not None:
@@ -1167,6 +1175,7 @@ def check_input_config(config, confirm=True, pprint=True):
     config.setdefault('ysize', fits_header['NAXIS2'])
 
     crop = config['crop']
+    rescale = config['rescale']
     check_crop = config['check_crop']
     if crop and check_crop:
         xorg, yorg, xsize, ysize = interactive_fov_selection(crisp_im, scale=1)
