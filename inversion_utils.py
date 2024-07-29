@@ -118,7 +118,7 @@ def make_north_up(data, rot_fov):
 
 
 def plot_crisp_image(name, tt=0, ww=0, ss=0, save_fig=False, crop=False, xtick_range=None, ytick_range=None,
-                     figsize=(8, 8), fontsize=12, rot_fov=0, north_up=False, xrange=None, yrange=None,
+                     figsize=(8, 8), fontsize=12, rot_fov=0, rot_to_north_up=False, xrange=None, yrange=None,
                      vmin=None, vmax=None):
     if ss == 0:
         label = 'I'
@@ -141,13 +141,13 @@ def plot_crisp_image(name, tt=0, ww=0, ss=0, save_fig=False, crop=False, xtick_r
         vmax = np.percentile(data[:, :, ss, ww], 99)
     if crop:
         final_data = data[yrange[0]:yrange[1], xrange[0]:xrange[1], ss, ww]
-        if north_up:
+        if rot_to_north_up:
             final_data = make_north_up(final_data, rot_fov)
         im1 = ax.imshow(final_data, cmap='Greys_r',
                         interpolation='nearest', aspect='equal', origin='lower', vmin=vmin, vmax=vmax)
     else:
         final_data = data[:, :, ss, ww]
-        if north_up:
+        if rot_to_north_up:
             final_data = make_north_up(final_data, rot_fov)
         im1 = ax.imshow(final_data, cmap='Greys_r', interpolation='nearest',
                         aspect='equal', origin='lower', vmin=vmin, vmax=vmax)
@@ -1272,8 +1272,10 @@ def check_input_config(config, confirm=True, pprint=True):
     t_obs = fits_info['avg_time_obs']
     all_wavelengths = fits_info['all_wavelengths']
     fov = fov_angle(t_obs)
-    print(f'FOV angle: {fov:.2f} deg')
-
+    print(f'FOV angle from turret log: {fov:.2f} deg')
+    if config['is_north_up']:
+        fov = 0
+        print('Data is North up. Setting fov_angle to 0 deg.')
     wfa_blos_map = None
     if verbose:
         # Plot the contrast as a function of the time index
