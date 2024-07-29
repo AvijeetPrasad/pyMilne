@@ -1,14 +1,17 @@
 # # Data directory
-data_dir: "/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/"
-# data_dir: '/mn/stornext/d18/lapalma/reduc/2021/2021-06-22/CRISP/cubes_nb/'
+# data_dir: "/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/"
+data_dir: '/mn/stornext/d18/lapalma/reduc/2021/2021-06-22/CRISP/cubes_nb/'
+# data_dir: '/mn/stornext/d18/lapalma/reduc/2024/2024-05-21/CRISP/cubes_nb/'
 
 # CRISP image file
-crisp_im: "nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits"
-# crisp_im: 'nb_6173_2021-06-22T08:17:48_scans=0-162_stokes_corrected_im.fits'
+# crisp_im: "nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits"
+crisp_im: 'nb_6173_2021-06-22T08:17:48_scans=0-162_stokes_corrected_im.fits'
+# crisp_im: 'nb_6173_2024-05-21T10:19:04_10:19:04=0-52_stokes_corrected_im.fits'
 
 # Save directory for saving temporary files and final outputs
-# save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2021-06-22/"
-save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2020-08-07/"
+# save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2020-08-07/"
+save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2021-06-22/"
+# save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2024-05-21/"
 
 # Crop flag to crop the CRISP image and run inversion only for a smaller region of interest
 crop: true
