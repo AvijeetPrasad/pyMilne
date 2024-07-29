@@ -6,7 +6,6 @@ __pycache__/
 example_CRISP/fig_results.pdf
 .vscode/
 .env
-.env*
 example_CRISP/temp
 *.fcube
 *.fits 
@@ -14,3 +13,4 @@ temp*
 .DS_Store
 ITA/ambig_input.dat
 ITA/azimuth.dat
+ITA/input_config.yaml

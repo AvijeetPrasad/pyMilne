@@ -1,0 +1,126 @@
+# # Data directory
+# data_dir: "/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/"
+data_dir: '/mn/stornext/d18/lapalma/reduc/2021/2021-06-22/CRISP/cubes_nb/'
+# data_dir: '/mn/stornext/d18/lapalma/reduc/2024/2024-05-21/CRISP/cubes_nb/'
+
+# CRISP image file
+# crisp_im: "nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits"
+crisp_im: 'nb_6173_2021-06-22T08:17:48_scans=0-162_stokes_corrected_im.fits'
+# crisp_im: 'nb_6173_2024-05-21T10:19:04_10:19:04=0-52_stokes_corrected_im.fits'
+
+# Save directory for saving temporary files and final outputs
+# save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2020-08-07/"
+save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2021-06-22/"
+# save_dir: "/mn/stornext/d9/data/avijeetp/1_Projects/61_QSEB_Topology/2024-05-21/"
+
+# Crop flag to crop the CRISP image and run inversion only for a smaller region of interest
+crop: true
+check_crop: false  # Interactively select the cropping region
+
+
+# # Origin coordinates after cropping for the region of interest
+xorg: 200  # Origin x-coordinate
+yorg: 370  # Origin y-coordinate
+# Size
+xsize: 480  # Size along x-axis after cropping
+ysize: 400  # Size along y-axis after cropping
+# Rescale?
+rescale: 2  # Scale down the cropped image by this factor (only for ambiguity resolution for now)
+
+# Time range for the CRISP image in the format [start_time_index, end_time_index], [start_time_index, end_time_index, step_size], "first", "best", "full"
+time_range: "best"
+
+# Scale in arcsec/pixel
+scale: 0.058 # 0.044
+
+# North up flag to mark if the CRISP image is already oriented with north up
+is_north_up: false
+
+# Shape of the CRISP FOV in format ['shape', 'width', 'height] or ['shape', 'radius']
+shape: ["square", 56, 56] # ["circle", 87] 
+
+# HMI series for downloading the magnetogram and continuum images from JSOC
+hmi_con_series: "hmi.Ic_45s"
+hmi_mag_series: "hmi.M_45s"
+
+# Email address used for JSOC download. You can optionally keep it empty string
+email: ""
+
+# Plot SST pointings? To plot SST pointings for the full observation over HMI Ic
+plot_sst_pointings_flag: true
+
+# Plot HMI Icon and Mag? To plot HMI Ic and Mag images with SST FOV overlaid for comparison
+plot_hmi_ic_mag_flag: true
+
+# Plot SST CRISP image to compare with HMI? To plot SST CRISP image for quick comparison with HMI Ic and Mag
+plot_crisp_image_flag: true
+
+# Show intermediate plots during inversion
+verbose: true
+
+# Save the inversion results as fits
+# ["Bstr", "Binc", "Bazi", "Vlos", "Vdop", "etal", "damp", "S0", "S1", "Blos", "Bhor", "Nan_mask"]
+# ["Bstr_err", "Binc_err", "Bazi_err", "Vlos_err", "Vdop_err", "etal_err", "damp_err", "S0_err", "S1_err", "Blos_err", "Bhor_err", "Nan_mask"]
+
+inversion_save_fits_list: []
+inversion_save_errors_fits: false
+
+# Save inversion results as LP cubes
+inversion_save_lp_list: ["Blos", "Bhor", "Bazi", "Vlos"]
+inversion_save_errors_lp: true
+
+# Delete temporary files after inversion
+delete_temp_files: true
+
+
+
+
+
+
+
+
+
+### ------ Small scale anemone jet ---------
+# datadir = '/mn/stornext/d18/lapalma/reduc/2024/2024-05-21/CRISP/cubes_nb/'
+# crisp_im = datadir + 'nb_6173_2024-05-21T10:19:04_10:19:04=0-52_stokes_corrected_im.fits'
+# blos_cube = datadir + 'Blos.6173_2024-05-21T10:19:04.icube'
+# bhor_cube = datadir + 'Bhor.6173_2024-05-21T10:19:04.icube'
+# xorg = 1110
+# xsize = 800
+# yorg = 570
+# ysize = 800
+# tt = 8
+# is_north_up = True
+# shape = 'circle'
+# scale = 0.044 # arcsec/pixel
+# crop = False
+
+### Sunspot data set close to center also observed with Hinode
+# datadir = '/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/'
+# crisp_im = datadir + 'nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits'
+# blos_cube = datadir + 'Blos.6173_2020-08-07T08:22:14.icube'
+# bhor_cube = datadir + 'Bhor.6173_2020-08-07T08:22:14.icube'
+# xorg = 200
+# xsize = 480
+# yorg = 360
+# ysize = 400
+# tt = 0
+# scale = 0.058 # arcsec/pixel
+# is_north_up = False
+# crop = False
+# shape = 'square'
+
+### QS dataset used by Aditi
+# datadir = '/mn/stornext/d18/lapalma/reduc/2021/2021-06-22/CRISP/cubes_nb/'
+# crisp_im = datadir + 'nb_6173_2021-06-22T08:17:48_scans=0-162_stokes_corrected_im.fits'
+# blos_cube = datadir + 'Blos.6173_2021-06-22T08:17:48.icube'
+# bhor_cube = datadir + 'Bhor.6173_2021-06-22T08:17:48.icube'
+# xsize = 256
+# ysize = 256
+# xorg = 273
+# yorg = 420
+# tt = 41
+# scale = 0.058 # arcsec/pixel
+# shape = 'square'
+# crop = False
+# is_north_up = False

@@ -33,7 +33,7 @@ To do so, we can create a separate environment to install all packages, in this 
 conda create --name bla
 conda activate bla
 conda install fftw clangxx_osx-64 eigen ipython matplotlib numpy cython scipy astropy llvm-openmp
-
+conda install --file requirements.txt
 ```
 After that, you will be able to compile the binary as explained above. Just remember to load this environment every time you want to use this module.
 
@@ -51,6 +51,10 @@ conda install fftw gxx_linux-64 eigen ipython matplotlib numpy cython scipy astr
 We refer to the commented example.py file that is included with the distribution.
 We have also prepared an example with a real SST/CRISP dataset that can be found in the example_CRISP/ folder. Simply run invert_crisp.py. That example is also extensively commented.
 We also have included an example that makes use of the spatially-regularized Levenberg-Marquardt (invert_crisp_spatially_regularized.py).
+
+## ITA specific notes
+- Rename the `.env.example` file to `.env` and add the pyMilne folder to your python path.
+- Rename the `ITA/input_config.example.yaml` to `ITA/input_config.yaml` and set the paths to the data and output folders.
 
 ## Citing
 These routines were developed and used as part of the study by [de la Cruz Rodriguez (2019)](https://ui.adsabs.harvard.edu/abs/2019A%26A...631A.153D/abstract). If you find these routines useful for your research, I would appreciate it the most if that publication is cited in your paper.
