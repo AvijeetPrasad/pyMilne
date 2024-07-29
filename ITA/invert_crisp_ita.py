@@ -109,19 +109,19 @@ if plot_sst_pointings_flag:
 
 # %%
 if plot_hmi_ic_mag_flag:
-    hp.plot_hmi_ic_mag(tobs, hmi_con_series, hmi_mag_series, email, x1, x2, y1, y2, save_dir=save_dir,
-                       figsize=(10, 5),  is_north_up=is_north_up, fov_angle=fov_angle, shape=shape)
+    hp.plot_hmi_ic_mag(tobs, hmi_con_series, hmi_mag_series, email, x1, x2, y1, y2, save_dir=save_dir, figsize=(10, 5),
+                       is_north_up=is_north_up, fov_angle=fov_angle, shape=shape)
 
 # %%
 if plot_crisp_image_flag:
     print('SST CRISP image with North up:', not (is_north_up))
     iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=0, ww=0, figsize=(8, 8), fontsize=10, rot_fov=fov_angle,
-                        north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange, xtick_range=[x1, x2],
-                        ytick_range=[y1, y2], vmin=0.2)
+                        rot_to_north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange,
+                        xtick_range=[x1, x2], ytick_range=[y1, y2], vmin=0.2, flip_lr=False)
 
     iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=3, ww=nw // 4, figsize=(8, 8), fontsize=10, rot_fov=fov_angle,
-                        north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange, xtick_range=[x1, x2],
-                        ytick_range=[y1, y2], vmin=-0.2)
+                        rot_to_north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange,
+                        xtick_range=[x1, x2], ytick_range=[y1, y2], vmin=-0.2, flip_lr=False)
 
 # %%
 # Load the variables from the inversion configuration
@@ -210,9 +210,9 @@ for tt in time_range:
 
     # Run the spatially regularised ME inversion
     print('=== BLOCK 4: Spatially Regularised ME Inversions ===')
-    Imodel, syn, chi2 = meu.run_spatially_regularized_inversion(
-        me, Imodel, obs, sig, nIter3, chi2_thres3, mu, alpha_strength, alpha_list, method=1, delay_bracket=3,
-        dtype=dtype, verbose=True)
+    Imodel, syn, chi2 = meu.run_spatially_regularized_inversion(me, Imodel, obs, sig, nIter3, chi2_thres3, mu,
+                                                                alpha_strength, alpha_list, method=1, delay_bracket=3,
+                                                                dtype=dtype, verbose=True)
     Imodel = np.squeeze(Imodel)
     errors = me.estimate_uncertainties(Imodel, obs, sig, mu=mu)
 
@@ -383,6 +383,6 @@ iu.save_fits_header_as_text(fits_header_dict, 'fits_header.txt', save_dir=save_d
 
 # %%
 # iu.plot_sst_blos_bhor(blos_new, bhor_new, tt=0,xrange=xrange, yrange=yrange, figsize=(20,10), fontsize=12,
-#  vmin1=-50, vmax1=50, vmax2=200)
+#                       vmin1=-50, vmax1=50, vmax2=200)
 # iu.plot_sst_blos_bhor(blos_old, bhor_old, tt=145,xrange=xrange, yrange=yrange, figsize=(20,10), fontsize=12,
-#  crop=crop, vmin1=-50, vmax1=50, vmax2=200)
+#                       crop=crop, vmin1=-50, vmax1=50, vmax2=200)

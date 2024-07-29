@@ -36,6 +36,9 @@ scale: 0.058 # 0.044
 # North up flag to mark if the CRISP image is already oriented with north up
 is_north_up: false
 
+# Does the data need to be flipped left-right?
+flip_lr: true
+
 # Shape of the CRISP FOV in format ['shape', 'width', 'height] or ['shape', 'radius']
 shape: ["square", 56, 56] # ["circle", 87] 
 

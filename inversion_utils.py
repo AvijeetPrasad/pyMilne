@@ -100,26 +100,29 @@ def get_nan_mask(name, tt=0, invert=False, crop=False, xrange=None, yrange=None)
     return mask
 
 
-def make_north_up(data, rot_fov):
+def make_north_up(data, rot_fov, flip_lr=True):
     # Replace NaNs with the minimum value of the non-NaN elements
     min_val = np.nanmin(data)
     data = np.nan_to_num(data, nan=0.999 * min_val)
 
+    if flip_lr:
+        rot_fov = -rot_fov
     # Rotate the image
-    rotated_data = rotate(data, -rot_fov, reshape=True, mode='nearest')
+    rotated_data = rotate(data, rot_fov, reshape=True, mode='nearest')
 
     # Replace any NaNs introduced by rotation
     rotated_data = np.nan_to_num(rotated_data, nan=0.99 * np.nanmin(rotated_data))
 
     # Flip the data left to right
-    rotated_data = np.fliplr(rotated_data)
+    if flip_lr:
+        rotated_data = np.fliplr(rotated_data)
 
     return rotated_data
 
 
 def plot_crisp_image(name, tt=0, ww=0, ss=0, save_fig=False, crop=False, xtick_range=None, ytick_range=None,
                      figsize=(8, 8), fontsize=12, rot_fov=0, rot_to_north_up=False, xrange=None, yrange=None,
-                     vmin=None, vmax=None):
+                     vmin=None, vmax=None, flip_lr=True):
     if ss == 0:
         label = 'I'
     elif ss == 1:
@@ -142,13 +145,13 @@ def plot_crisp_image(name, tt=0, ww=0, ss=0, save_fig=False, crop=False, xtick_r
     if crop:
         final_data = data[yrange[0]:yrange[1], xrange[0]:xrange[1], ss, ww]
         if rot_to_north_up:
-            final_data = make_north_up(final_data, rot_fov)
+            final_data = make_north_up(final_data, rot_fov, flip_lr=flip_lr)
         im1 = ax.imshow(final_data, cmap='Greys_r',
                         interpolation='nearest', aspect='equal', origin='lower', vmin=vmin, vmax=vmax)
     else:
         final_data = data[:, :, ss, ww]
         if rot_to_north_up:
-            final_data = make_north_up(final_data, rot_fov)
+            final_data = make_north_up(final_data, rot_fov, flip_lr=flip_lr)
         im1 = ax.imshow(final_data, cmap='Greys_r', interpolation='nearest',
                         aspect='equal', origin='lower', vmin=vmin, vmax=vmax)
     # check for nan values in the data and set it to 0.99 min value
@@ -1088,6 +1091,7 @@ def check_input_config(config, confirm=True, pprint=True):
         'yorg': 0,
         'scale': 0.044,
         'is_north_up': True,
+        'flip_lr': False,
         'crop': False,
         'check_crop': False,
         'rescale': 1,
@@ -1200,6 +1204,7 @@ def check_input_config(config, confirm=True, pprint=True):
 
     scale = config['scale']
     is_north_up = config['is_north_up']
+    flip_lr = config['flip_lr']
     shape = config['shape']
     save_dir = config['save_dir']
     verbose = config['verbose']
@@ -1309,7 +1314,8 @@ def check_input_config(config, confirm=True, pprint=True):
         'inversion_save_errors_fits': inversion_save_errors_fits,
         'inversion_save_lp_list': inversion_save_lp_list,
         'inversion_save_errors_lp': inversion_save_errors_lp,
-        'wfa_blos_map': wfa_blos_map, 'rescale': rescale, 'delete_temp_files': delete_temp_files
+        'wfa_blos_map': wfa_blos_map, 'rescale': rescale, 'delete_temp_files': delete_temp_files,
+        'flip_lr': flip_lr
     }
     return config_dict
 
