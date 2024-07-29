@@ -1,4 +1,4 @@
-import inv_utils as iu
+import inversion_utils as iu
 import numpy as np
 import crisp
 import MilneEddington as ME

@@ -44,6 +44,7 @@ but replacing the compiler packages for gcc:
 conda create --name bla
 conda activate bla
 conda install fftw gxx_linux-64 eigen ipython matplotlib numpy cython scipy astropy
+conda install --file requirements.txt
 ```
 
 
@@ -54,7 +55,7 @@ We also have included an example that makes use of the spatially-regularized Lev
 
 ## ITA specific notes
 - Rename the `.env.example` file to `.env` and add the pyMilne folder to your python path.
-- Rename the `ITA/input_config.example.yaml` to `ITA/input_config.yaml` and set the paths to the data and output folders.
+- Rename the `ITA/input_config.example.yaml` to `ITA/input_config.yaml` and set the paths to the data and output folders. Also remember to update this input_config.yaml if you pull changes in the  `ITA/input_config.example.yaml` file in future.
 
 ## Citing
 These routines were developed and used as part of the study by [de la Cruz Rodriguez (2019)](https://ui.adsabs.harvard.edu/abs/2019A%26A...631A.153D/abstract). If you find these routines useful for your research, I would appreciate it the most if that publication is cited in your paper.

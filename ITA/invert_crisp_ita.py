@@ -9,7 +9,7 @@ import numpy as np
 from einops import rearrange
 from uncertainties import unumpy
 import os
-import inv_utils as iu
+import inversion_utils as iu
 import me_utils as meu
 import helita_io_lp as lp
 import hmi_plot as hp
