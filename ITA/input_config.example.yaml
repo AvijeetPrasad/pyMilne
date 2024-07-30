@@ -61,6 +61,10 @@ plot_crisp_image_flag: true
 # Show intermediate plots during inversion
 verbose: true
 
+# Set min-max values for the BLOS plot. Comment them out to use 1 and 99 percentile as default values
+blos_min: -1000
+blos_max: 1000
+
 # Save the inversion results as fits
 # ["Bstr", "Binc", "Bazi", "Vlos", "Vdop", "etal", "damp", "S0", "S1", "Blos", "Bhor", "Nan_mask"]
 # ["Bstr_err", "Binc_err", "Bazi_err", "Vlos_err", "Vdop_err", "etal_err", "damp_err", "S0_err", "S1_err", "Blos_err", "Bhor_err", "Nan_mask"]

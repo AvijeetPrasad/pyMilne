@@ -669,6 +669,7 @@ def interactive_fov_selection(crisp_im, scale=1):
             break
     xorg, yorg = xrange[0], yrange[0]
     xsize, ysize = xrange[1]-xrange[0], yrange[1]-yrange[0]
+    print(f'xorg: {xorg}, yorg: {yorg}, xsize: {xsize}, ysize: {ysize}')
     return xorg, yorg, xsize, ysize
 
 
@@ -1107,7 +1108,9 @@ def check_input_config(config, confirm=True, pprint=True):
         'inversion_save_errors_fits': False,
         'inversion_save_lp_list': [],
         'inversion_save_errors_lp': False,
-        'delete_temp_files': True
+        'delete_temp_files': True,
+        'blos_min': None,
+        'blos_max': None
     }
 
     # Update config with default values if keys are missing
@@ -1214,6 +1217,8 @@ def check_input_config(config, confirm=True, pprint=True):
     plot_sst_pointings_flag = config['plot_sst_pointings_flag']
     plot_hmi_ic_mag_flag = config['plot_hmi_ic_mag_flag']
     plot_crisp_image_flag = config['plot_crisp_image_flag']
+    blos_min = config['blos_min']
+    blos_max = config['blos_max']
 
     # === Check the inversion output parameters ===
     inversion_save_fits_list = config['inversion_save_fits_list']
@@ -1315,7 +1320,8 @@ def check_input_config(config, confirm=True, pprint=True):
         'inversion_save_lp_list': inversion_save_lp_list,
         'inversion_save_errors_lp': inversion_save_errors_lp,
         'wfa_blos_map': wfa_blos_map, 'rescale': rescale, 'delete_temp_files': delete_temp_files,
-        'flip_lr': flip_lr
+        'flip_lr': flip_lr,
+        'blos_min': blos_min, 'blos_max': blos_max
     }
     return config_dict
 

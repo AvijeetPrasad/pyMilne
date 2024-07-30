@@ -43,6 +43,7 @@ time_range = config['time_range']
 best_frame_index = config['best_frame_index']
 scale = config['scale']
 is_north_up = config['is_north_up']
+flip_lr = config['flip_lr']
 crop = config['crop']
 shape = config['shape']
 best_frame = config['best_frame']
@@ -54,6 +55,8 @@ fov_angle = config['fov_angle']
 plot_sst_pointings_flag = config['plot_sst_pointings_flag']
 plot_hmi_ic_mag_flag = config['plot_hmi_ic_mag_flag']
 plot_crisp_image_flag = config['plot_crisp_image_flag']
+blos_min = config['blos_min']
+blos_max = config['blos_max']
 verbose = config['verbose']
 inversion_save_fits_list = config['inversion_save_fits_list']
 inversion_save_errors_fits = config['inversion_save_errors_fits']
@@ -117,11 +120,11 @@ if plot_crisp_image_flag:
     print('SST CRISP image with North up:', not (is_north_up))
     iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=0, ww=0, figsize=(8, 8), fontsize=10, rot_fov=fov_angle,
                         rot_to_north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange,
-                        xtick_range=[x1, x2], ytick_range=[y1, y2], vmin=0.2, flip_lr=False)
+                        xtick_range=[x1, x2], ytick_range=[y1, y2], vmin=0.2, flip_lr=flip_lr)
 
     iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=3, ww=nw // 4, figsize=(8, 8), fontsize=10, rot_fov=fov_angle,
                         rot_to_north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange,
-                        xtick_range=[x1, x2], ytick_range=[y1, y2], vmin=-0.2, flip_lr=False)
+                        xtick_range=[x1, x2], ytick_range=[y1, y2], vmin=-0.2, flip_lr=flip_lr)
 
 # %%
 # Load the variables from the inversion configuration
@@ -182,7 +185,7 @@ for tt in time_range:
     if verbose:
         print(f'Masked chi2 mean: {masked_chi2_mean:.2f}')
         iu.plot_inversion_output(Imodel, ll.mask, scale=scale, save_fig=False)
-        iu.plot_mag(Imodel, ll.mask, scale=scale, save_fig=False)
+        iu.plot_mag(Imodel, ll.mask, scale=scale, save_fig=False, v1min=blos_min, v1max=blos_max)
 
     # if not init_model_from_sequence:
     if not first_iteration:
@@ -195,7 +198,7 @@ for tt in time_range:
         Imodel, masked_chi2_mean, median_filter_chi2_mean_thres, median_filter_size)
     if verbose:
         iu.plot_inversion_output(Imodel, ll.mask, scale=scale, save_fig=False)
-        iu.plot_mag(Imodel, ll.mask, scale=scale, save_fig=False)
+        iu.plot_mag(Imodel, ll.mask, scale=scale, save_fig=False, v1min=blos_min, v1max=blos_max)
     # init_model_from_sequence = True # Set the flag to True after the first iteration to avoid reinitialising the model
 
     # Run the ME inversion again based on the smoothed model input
@@ -206,7 +209,7 @@ for tt in time_range:
     if verbose:
         print(f'Masked chi2 mean: {masked_chi2_mean:.2f}')
         iu.plot_inversion_output(Imodel, ll.mask, scale=scale, save_fig=False)
-        iu.plot_mag(Imodel, ll.mask, scale=scale, save_fig=False)
+        iu.plot_mag(Imodel, ll.mask, scale=scale, save_fig=False, v1min=blos_min, v1max=blos_max)
 
     # Run the spatially regularised ME inversion
     print('=== BLOCK 4: Spatially Regularised ME Inversions ===')
@@ -222,13 +225,13 @@ for tt in time_range:
     if verbose:
         iu.plot_inversion_output(corrected_mo, ll.mask, scale=scale, save_fig=True,
                                  save_dir=save_dir, figname=f'inversion_output_{tt}.pdf')
-        iu.plot_mag(corrected_mo, ll.mask, scale=scale, save_fig=True,
-                    save_dir=save_dir, figname=f'mag_output_{tt}.pdf')
+        iu.plot_mag(corrected_mo, ll.mask, scale=scale, save_fig=True, save_dir=save_dir,
+                    figname=f'mag_output_{tt}.pdf', v1min=blos_min, v1max=blos_max)
     else:
         iu.plot_inversion_output(corrected_mo, ll.mask, scale=scale, save_fig=True,
                                  save_dir=save_dir, figname=f'inversion_output_{tt}.pdf', show_fig=False)
-        iu.plot_mag(corrected_mo, ll.mask, scale=scale, save_fig=True,
-                    save_dir=save_dir, figname=f'mag_output_{tt}.pdf', show_fig=False)
+        iu.plot_mag(corrected_mo, ll.mask, scale=scale, save_fig=True, save_dir=save_dir,
+                    figname=f'mag_output_{tt}.pdf', show_fig=False, v1min=blos_min, v1max=blos_max)
 
     # Apply a mask to the model and errors to remove the NaN values from the edges
     print('=== BLOCK 6: Apply Mask to Model and Errors ===')
@@ -239,7 +242,7 @@ for tt in time_range:
         iu.plot_inversion_output(masked_model, mask=None, scale=scale, save_fig=False)
         iu.plot_inversion_output(masked_errors, mask=None, scale=scale, save_fig=False,
                                  apply_median_filter=True, filter_index=[1, 2], filter_size=3)
-        iu.plot_mag(masked_model, mask=None, scale=scale, save_fig=False)
+        iu.plot_mag(masked_model, mask=None, scale=scale, save_fig=False, v1min=blos_min, v1max=blos_max)
 
     print('=== Calculating Blos and Bhor ===')
     # Rearrange the model and errors for saving
