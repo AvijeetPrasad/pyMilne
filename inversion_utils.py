@@ -669,7 +669,7 @@ def interactive_fov_selection(crisp_im, scale=1):
             break
     xorg, yorg = xrange[0], yrange[0]
     xsize, ysize = xrange[1]-xrange[0], yrange[1]-yrange[0]
-    print(f'xorg: {xorg}, yorg: {yorg}, xsize: {xsize}, ysize: {ysize}')
+    print(f'Final Region details (for input config): xorg: {xorg}, yorg: {yorg}, xsize: {xsize}, ysize: {ysize}')
     return xorg, yorg, xsize, ysize
 
 
@@ -1179,8 +1179,13 @@ def check_input_config(config, confirm=True, pprint=True):
     elif time_range == 'full':
         time_range = list(range(nt))
     elif isinstance(time_range, list):
+        if len(time_range) == 1:
+            time_range = time_range
         if len(time_range) == 2:
-            time_range = list(range(time_range[0], time_range[1]))
+            if time_range[0] == time_range[1]:
+                time_range = [time_range[0]]
+            else:
+                time_range = list(range(time_range[0], time_range[1]))
         elif len(time_range) == 3:
             time_range = list(range(time_range[0], time_range[1], time_range[2]))
     else:
@@ -1387,10 +1392,11 @@ def save_yaml_config(config, filename, save_dir='.', overwrite=True, sort_keys=F
 
 
 def save_fits_header_as_text(fits_header, filename, save_dir='.'):
-    with open(f'{save_dir}/{filename}', 'w') as f:
+    outfile = os.path.join(save_dir, filename)
+    with open(f'{outfile}', 'w') as f:
         for key, value in fits_header.items():
             f.write(f'{key}: {value}\n')
-    print(f'fits_header.txt saved to: {save_dir}/{filename}')
+    print(f'fits_header.txt saved to: {outfile}')
 
 
 def get_nthreads(usage_fraction=1, verbose=True):
