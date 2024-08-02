@@ -118,7 +118,7 @@ if plot_hmi_ic_mag_flag:
 # %%
 if plot_crisp_image_flag:
     print('SST CRISP image with North up:', not (is_north_up))
-    iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=0, ww=0, figsize=(8, 8), fontsize=10, rot_fov=fov_angle,
+    iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=0, ww=0, figsize=(12, 12), fontsize=10, rot_fov=fov_angle,
                         rot_to_north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange,
                         xtick_range=[x1, x2], ytick_range=[y1, y2], vmin=0.2, flip_lr=flip_lr)
 
@@ -290,10 +290,10 @@ for tt in time_range:
     for var in inversion_save_list:
         var_index = inversion_out_list.index(var)
         sav_var = inversion_out_list[var_index]
-        out_file_name = save_dir + f'temp_{sav_var}_{cen_wav}_t_{tt}_{time_string}.fits'
+        out_file_name = os.path.join(save_dir, f'temp_{sav_var}_{cen_wav}_t_{tt}_{time_string}.fits')
         iu.save_fits(idl_model_im[var_index], fits_header, out_file_name, overwrite=True, verbose=verbose)
         if inversion_save_errors_fits or inversion_save_errors_lp and sav_var != 'Nan_mask':
-            out_file_name = save_dir + f'temp_{sav_var}_err_{cen_wav}_t_{tt}_{time_string}.fits'
+            out_file_name = os.path.join(save_dir, f'temp_{sav_var}_err_{cen_wav}_t_{tt}_{time_string}.fits')
             iu.save_fits(idl_errors_im[var_index], fits_header, out_file_name, overwrite=True, verbose=verbose)
 
 # %%
@@ -313,38 +313,40 @@ for var in inversion_save_list:
     for ii in range(len(time_range)):
         tt = time_range[ii]
         time_string = all_start_times[tt].replace(':', '').replace(' ', '_T')
-        out_file_name = save_dir + f'temp_{sav_var}_{cen_wav}_t_{tt}_{time_string}.fits'
+        out_file_name = os.path.join(save_dir, f'temp_{sav_var}_{cen_wav}_t_{tt}_{time_string}.fits')
         var_data = iu.load_fits_data(out_file_name)
         temp_file_list.append(out_file_name)
         var_header = iu.load_fits_header(out_file_name, out_dict=False)
         full_var_data[ii] = var_data
 
         if inversion_save_errors_fits or inversion_save_errors_lp and sav_var != 'Nan_mask':
-            err_out_file_name = save_dir + f'temp_{sav_var}_err_{cen_wav}_t_{tt}_{time_string}.fits'
+            err_out_file_name = os.path.join(save_dir, f'temp_{sav_var}_err_{cen_wav}_t_{tt}_{time_string}.fits')
             err_data = iu.load_fits_data(err_out_file_name)
             temp_file_list.append(err_out_file_name)
             full_err_data[ii] = err_data
 
     if var in inversion_save_fits_list:
         # Save the full variable data
-        out_file_name = save_dir + f'{sav_var}_{cen_wav}_{obs_start_time}_{obs_end_time}_t_{time_index_range}.fits'
+        out_file_name = os.path.join(save_dir, f'{sav_var}_{cen_wav}_{obs_start_time}_{
+                                     obs_end_time}_t_{time_index_range}.fits')
         iu.save_fits(full_var_data, var_header, out_file_name, overwrite=True, verbose=verbose)
         if inversion_save_errors_fits and sav_var != 'Nan_mask':
-            err_out_file_name = save_dir + \
-                f'{sav_var}_err_{cen_wav}_{obs_start_time}_{obs_end_time}_t_{time_index_range}.fits'
+            err_out_file_name = os.path.join(save_dir, f'{sav_var}_err_{cen_wav}_{obs_start_time}_{
+                                             obs_end_time}_t_{time_index_range}.fits')
             iu.save_fits(full_err_data, var_header, err_out_file_name, overwrite=True, verbose=verbose)
 
     if var in inversion_save_lp_list:
         # Save the inversion output in the LP format
-        lp_out_file_name = save_dir + f'{sav_var}_{cen_wav}_{obs_start_time}_{obs_end_time}_t_{time_index_range}.fcube'
+        lp_out_file_name = os.path.join(save_dir, f'{sav_var}_{cen_wav}_{obs_start_time}_{
+                                        obs_end_time}_t_{time_index_range}.fcube')
         lp_data = np.float32(rearrange(full_var_data, 'nt nx ny -> nx ny nt'))
-        lp.writeto(lp_out_file_name, lp_data, extraheader='', dtype=None, verbose=verbose, append=False)
+        lp.writeto(lp_out_file_name, lp_data, extraheader='', dtype=None, verbose=True, append=False)
 
         if inversion_save_errors_lp and sav_var != 'Nan_mask':
-            lp_err_out_file_name = save_dir + \
-                f'{sav_var}_err_{cen_wav}_{obs_start_time}_{obs_end_time}_nt_{time_index_range}.fcube'
+            lp_err_out_file_name = os.path.join(save_dir, f'{sav_var}_err_{cen_wav}_{obs_start_time}_{
+                                                obs_end_time}_nt_{time_index_range}.fcube')
             lp_err_data = np.float32(rearrange(full_err_data, 'nt nx ny -> nx ny nt'))
-            lp.writeto(lp_err_out_file_name, lp_err_data, extraheader='', dtype=None, verbose=verbose, append=False)
+            lp.writeto(lp_err_out_file_name, lp_err_data, extraheader='', dtype=None, verbose=True, append=False)
 
     if delete_temp_files:
         # Delete the temporary file using os module
@@ -352,6 +354,9 @@ for var in inversion_save_list:
             if verbose:
                 print(f'Deleting temporary file: {temp_file}')
             os.remove(temp_file)
+
+# %%
+lp_out_file_name
 
 # %%
 

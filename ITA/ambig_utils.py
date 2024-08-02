@@ -88,7 +88,8 @@ def run_command(command, verbose=True):
 
 def read_azimuth_dat_file(file_path, new_shape, verbose=False):
     """
-    Reads a 2D array from a Fortran-written dat file into a NumPy array and reshapes it.
+    Reads a 2D array from a Fortran-written dat file into a NumPy array and reshapes it,
+    ensuring the data is flattened and then reshaped to the desired shape.
 
     Parameters:
     file_path (str): Path to the dat file.
@@ -96,25 +97,38 @@ def read_azimuth_dat_file(file_path, new_shape, verbose=False):
 
     Returns:
     np.ndarray: Reshaped 2D NumPy array containing the data from the file.
+
+    # Example usage:
+    ysize = 1284
+    xsize = 1278
+    azimuth_dat = 'path_to_file.dat'
+    phi = read_azimuth_dat_file(azimuth_dat, (ysize, xsize), verbose=True)
     """
     if verbose:
         print(f"Reading file: {file_path}")
+
     with open(file_path, 'r') as file:
         # Read all lines from the file
         lines = file.readlines()
 
-    # Process each line to extract the floating-point numbers
+    # Initialize an empty list to store the data
     data = []
+
+    # Process each line to extract the floating-point numbers
     for line in lines:
         # Split the line by whitespace and convert each part to a float
         row = [float(value) for value in line.split()]
-        data.append(row)
+        data.extend(row)
 
-    # Convert the list of lists into a NumPy array
+    # Convert the flattened list into a NumPy array
     array = np.array(data)
 
-    # Flatten the array and then reshape it to the desired shape
-    ambig = array.flatten().reshape(new_shape)
+    # Check if the total number of elements matches the expected size
+    if array.size != new_shape[0] * new_shape[1]:
+        raise ValueError(f"Data size mismatch: expected {new_shape[0] * new_shape[1]}, got {array.size}")
+
+    # Reshape the array to the desired shape
+    ambig = array.reshape(new_shape)
     if verbose:
         print(f"Array shape: {ambig.shape}")
     return ambig
