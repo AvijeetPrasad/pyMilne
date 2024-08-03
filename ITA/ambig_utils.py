@@ -543,7 +543,6 @@ def get_par_range(param_name, start=None, end=None, step=None, verbose=False):
         'iaunit': [0, 1],
         'ipunit': [0, 1],
         'incflag': [0, 1],
-        'iseed': range(1, 20),  # assuming positive integers
         'iverb': [0, 1, 2],
     }
 
@@ -559,7 +558,8 @@ def get_par_range(param_name, start=None, end=None, step=None, verbose=False):
         'nty': (0, 50),
         'nerode': (1, 5),
         'ngrow': (1, 5),
-        'neq': (0, 150),
+        'iseed': range(1, 20),
+        'neq': (25, 150),
     }
 
     if param_name in discrete_params:
@@ -571,9 +571,15 @@ def get_par_range(param_name, start=None, end=None, step=None, verbose=False):
             end = ranged_params[param_name][1]
         if step is None:
             # Generate three points: min, max, and middle
-            return np.array([start, (start + end) / 2, end])
+            out_range = np.array([start, (start + end) / 2.0, end])
+            # Round the values to 2 decimal places
+            out_range = np.round(out_range, 2)
+            return out_range
         else:
-            return np.arange(start, end + step, step)
+            out_range = np.arange(start, end + step, step)
+            # Round the values to 2 decimal places
+            out_range = np.round(out_range, 2)
+            return out_range
     else:
         raise ValueError(f"Unknown parameter name: {param_name}")
 
@@ -655,7 +661,7 @@ def disambiguation_metrics(btrans, azimuth, bthresh=400, data_mask=None):
 
 
 def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, plot_fig=False,
-                     save_dir='.', save_fig=False, data_mask=None):
+                     save_dir='.', save_fig=False, data_mask=None, timeit=True):
     """
     Calculate and plot disambiguation metrics.
 
@@ -669,10 +675,14 @@ def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, plot_fig=F
     save_dir (str): Directory to save the files. Default is '.'.
     save_fig (bool): Flag to save the plot. Default is False.
     data_mask (np.ndarray, optional): Mask array indicating regions to include in calculations.
+    timeit (bool): Flag to time the execution. Default is True.
 
     Returns:
     tuple: (bx, by, bz, phi, metrics)
     """
+    if timeit:
+        import time
+        start_time = time.time()
     ysize, xsize = blos.shape
     # Read parameters from the ambiguity parameter file
     params = read_ambig_par_file(par_file)
@@ -688,6 +698,13 @@ def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, plot_fig=F
     bx = bhor * np.cos(phi)
     by = bhor * np.sin(phi)
     bz = blos
+    if timeit:
+        runtime = time.time() - start_time
+        print(f"Execution time: {runtime:.2f} seconds")
+    else:
+        runtime = None
+    # Add runtime to metrics
+    metrics['runtime'] = runtime
 
     if plot_fig:
         figname = os.path.join(save_dir, f'disambig_{id}.pdf')
