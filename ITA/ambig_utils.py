@@ -126,7 +126,7 @@ def run_ambig_executable(ambig_executable_path, ambig_par, prefix, ysize, xsize,
     # Define the output file names
     azimuth_dat = 'azimuth.dat'
     azimuth_dat_copy = os.path.join(save_dir, prefix + 'azimuth.dat')
-
+    print(f"azimuth_dat_copy: {azimuth_dat_copy}")  # Debugging
     # Copy the azimuth.dat file to the save directory
     try:
         os.system(f'cp {azimuth_dat} {azimuth_dat_copy}')
@@ -205,12 +205,13 @@ def read_azimuth_dat_file(file_path, new_shape, verbose=False):
     return ambig
 
 
-def read_ambig_par_file(par_file):
+def read_ambig_par_file(par_file, pprint=False):
     """
     Parses the input parameter file and returns the parameters as a dictionary.
 
     Parameters:
     - par_file (str): Path to the parameter file.
+    - pprint (bool): If True, print the parameters in a formatted way.
 
     Returns:
     - dict: Dictionary containing the parsed parameters.
@@ -286,11 +287,14 @@ def read_ambig_par_file(par_file):
             params['jfa'] = int(hinode_info[2])
             params['jsf'] = int(hinode_info[3])
             params['jci'] = int(hinode_info[4])
-
+    if pprint:
+        print(f"Parameter file: {par_file}")
+        for key, value in params.items():
+            print(f"{key}: {value}")
     return params
 
 
-def write_ambig_par_file(par_file, params, labels=None, pprint=False):
+def write_ambig_par_file(par_file, params, save_dir='.', labels=None, pprint=False):
     """
     Writes the parameter values from a dictionary to the parameter file with proper spacing.
 
@@ -298,6 +302,7 @@ def write_ambig_par_file(par_file, params, labels=None, pprint=False):
     - par_file (str): Path to the parameter file.
     - params (dict): Dictionary containing the parameters.
     - labels (list): List of labels for each line in the parameter file.
+    - save_dir (str): Directory to save the parameter file. Default is the current directory.
     """
     if labels is None:
         # Define the labels for each line
@@ -312,6 +317,9 @@ def write_ambig_par_file(par_file, params, labels=None, pprint=False):
 
     # Determine the maximum length of the labels section for proper alignment
     max_label_length = max(len(label) for label in labels)
+
+    # Write the parameter values to the file in the save directory
+    par_file = os.path.join(save_dir, par_file)
 
     with open(par_file, 'w') as f:
         # Write the filename line
@@ -364,12 +372,13 @@ def write_ambig_par_file(par_file, params, labels=None, pprint=False):
     return par_file
 
 
-def get_par_info(param_name, verbose=False):
+def get_par_info(param_name, pprint=False):
     """
     Returns the help text for the given parameter.
 
     Parameters:
     - param_name (str): The name of the parameter.
+    - pprint (bool): If True, print the help text.
 
     Returns:
     - str: Help text for the parameter.
@@ -501,8 +510,9 @@ def get_par_info(param_name, verbose=False):
         )
     }
     help_text = help_texts.get(param_name, f"No help text available for parameter: {param_name}")
-    if verbose:
+    if pprint:
         print(help_text)
+        return None
     return help_text
 
 
@@ -539,7 +549,7 @@ def get_par_range(param_name, start=None, end=None, step=None, verbose=False):
 
     ranged_params = {
         'athresh': (0, 600),
-        'bthresh': (0, 800),
+        'bthresh': (50, 800),
         'lambda': (0, 1),
         'tfac0': (1.0, 3.0),
         'tfactr': (0, 1),
@@ -568,7 +578,7 @@ def get_par_range(param_name, start=None, end=None, step=None, verbose=False):
         raise ValueError(f"Unknown parameter name: {param_name}")
 
 
-def disambiguation_metrics(btrans, azimuth, bthresh=400):
+def disambiguation_metrics(btrans, azimuth, bthresh=400, data_mask=None):
     """
     Calculate disambiguation metrics based on the given parameters.
 
@@ -576,6 +586,7 @@ def disambiguation_metrics(btrans, azimuth, bthresh=400):
     btrans (np.ndarray): Transverse magnetic field.
     azimuth (np.ndarray): Azimuthal angle.
     bthresh (float): Threshold for weak Btrans.
+    data_mask (np.ndarray, optional): Mask array indicating regions to include in calculations.
 
     Returns:
     dict: A dictionary containing the calculated metrics.
@@ -591,8 +602,16 @@ def disambiguation_metrics(btrans, azimuth, bthresh=400):
     # Convert degrees to radians if necessary (assuming !dtor is a constant for degree to radian conversion)
     degrees_to_radians = np.pi / 180.0
 
+    # Apply the mask if provided
+    if data_mask is not None:
+        valid_mask = data_mask
+    else:
+        valid_mask = np.ones_like(btrans, dtype=bool)
+
     # Calculate the mean of the given formula
-    mean_azimuth_difference = np.mean(-1 * np.cos(shifted_azimuth - azimuth) * degrees_to_radians * btrans)
+    mean_azimuth_difference = np.mean(
+        (-1 * np.cos(shifted_azimuth - azimuth) * degrees_to_radians * btrans)[valid_mask]
+    )
 
     # Calculate partial derivatives using numpy.gradient
     partial_derivative_by_x = np.gradient(by, axis=1)
@@ -601,31 +620,83 @@ def disambiguation_metrics(btrans, azimuth, bthresh=400):
     # Calculate the vertical current density Jz
     vertical_current_density = partial_derivative_by_x - partial_derivative_bx_y
 
-    # Calculate the total and skew of |Jz| where Btrans is weak
-    weak_btrans_mask = btrans < bthresh
+    # Calculate the total and skew of |Jz| where Btrans is weak and valid_mask is True
+    weak_btrans_mask = (btrans < bthresh) & valid_mask
     mean_abs_vertical_current_density = np.mean(np.abs(vertical_current_density[weak_btrans_mask]))
     skew_abs_vertical_current_density = skew(np.abs(vertical_current_density[weak_btrans_mask]))
 
     # Calculate the gradient magnitude of Bx
     gradient_magnitude_bx = np.hypot(np.gradient(bx, axis=0), np.gradient(bx, axis=1))
 
+    # Calculate the gradient magnitude of By
+    gradient_magnitude_by = np.hypot(np.gradient(by, axis=0), np.gradient(by, axis=1))
+
     # Apply Sobel filter to gradient magnitude of Bx and smooth
     sobel_gradient_magnitude_bx = np.hypot(np.gradient(gradient_magnitude_bx, axis=0),
                                            np.gradient(gradient_magnitude_bx, axis=1))
     smoothed_sobel_gradient_magnitude_bx = gaussian_filter(sobel_gradient_magnitude_bx, sigma=5)
-    mean_smoothed_sobel_gradient = np.mean(smoothed_sobel_gradient_magnitude_bx[weak_btrans_mask])
+    mean_smoothed_sobel_gradient_x = np.mean(smoothed_sobel_gradient_magnitude_bx[weak_btrans_mask])
 
-    # Sum the absolute values of all the metrics to get a single metric for comparison
-    total_abs_metric = np.abs(mean_azimuth_difference) + mean_abs_vertical_current_density + \
-        np.abs(skew_abs_vertical_current_density) + mean_smoothed_sobel_gradient
+    sobel_gradient_magnitude_by = np.hypot(np.gradient(gradient_magnitude_by, axis=0),
+                                           np.gradient(gradient_magnitude_by, axis=1))
+    smoothed_sobel_gradient_magnitude_by = gaussian_filter(sobel_gradient_magnitude_by, sigma=5)
+    mean_smoothed_sobel_gradient_y = np.mean(smoothed_sobel_gradient_magnitude_by[weak_btrans_mask])
 
     # Create a dictionary to store the metrics
     metrics = {
         'mean_azimuth_difference': mean_azimuth_difference,
         'mean_abs_vertical_current_density': mean_abs_vertical_current_density,
         'skew_abs_vertical_current_density': skew_abs_vertical_current_density,
-        'mean_smoothed_sobel_gradient': mean_smoothed_sobel_gradient,
-        'total_abs_metric': total_abs_metric
+        'mean_smoothed_sobel_gradient_x': mean_smoothed_sobel_gradient_x,
+        'mean_smoothed_sobel_gradient_y': mean_smoothed_sobel_gradient_y
     }
 
     return metrics
+
+
+def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, plot_fig=False,
+                     save_dir='.', save_fig=False, data_mask=None):
+    """
+    Calculate and plot disambiguation metrics.
+
+    Parameters:
+    bhor (np.ndarray): Horizontal magnetic field component.
+    blos (np.ndarray): Line-of-sight magnetic field component.
+    par_file (str): Path to the parameter file.
+    ambig_executable_path (str): Path to the ambiguity resolution executable.
+    id (str): Identifier for the plot title.
+    plot_fig (bool): Flag to plot the results. Default is False.
+    save_dir (str): Directory to save the files. Default is '.'.
+    save_fig (bool): Flag to save the plot. Default is False.
+    data_mask (np.ndarray, optional): Mask array indicating regions to include in calculations.
+
+    Returns:
+    tuple: (bx, by, bz, phi, metrics)
+    """
+    ysize, xsize = blos.shape
+    # Read parameters from the ambiguity parameter file
+    params = read_ambig_par_file(par_file)
+
+    # Run the ambiguity resolution executable to get the azimuthal angle phi
+    phi = run_ambig_executable(ambig_executable_path, par_file, prefix=f'{id}_',
+                               save_dir=save_dir, ysize=ysize, xsize=xsize, verbose=False)
+
+    # Calculate disambiguation metrics
+    metrics = disambiguation_metrics(bhor, phi, bthresh=params['bthresh'], data_mask=data_mask)
+
+    # Calculate the magnetic field components from the azimuthal angle
+    bx = bhor * np.cos(phi)
+    by = bhor * np.sin(phi)
+    bz = blos
+
+    if plot_fig:
+        figname = os.path.join(save_dir, f'disambig_{id}.pdf')
+        # total_abs_metric = metrics['total_abs_metric']
+        fig_title = f'ID: {id}'
+        # Plot and optionally save the results
+        fig = iu.plot_images([bx, by, bz, phi], title=['Bx', 'By', 'Bz', 'Phi'], fontsize=20, figsize=(20, 22),
+                             cmap=['gray', 'gray', 'gray', 'twilight'], grid_shape=(2, 2), fig_title=fig_title,
+                             save_fig=save_fig, figname=figname, return_fig=True)
+        print(f"Saved figure: {figname}")
+
+    return bx, by, bz, phi, metrics, fig

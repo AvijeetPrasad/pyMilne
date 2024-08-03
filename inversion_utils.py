@@ -495,7 +495,16 @@ def plot_hist(data, bins=20, save_fig=False, figsize=(8, 8), vmin=None, vmax=Non
 
 def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=None, cutoff=0.001,
                fontsize=14, figname='image.pdf', cmap='Greys_r', title='Image', clip=False,
-               xrange=None, yrange=None, show_roi=False, grid=False, verbose=False, aspect='equal'):
+               xrange=None, yrange=None, show_roi=False, grid=False, verbose=False, aspect='equal',
+               return_fig=False):
+    # check if data contains nans
+    nansum = np.sum(np.isnan(data))
+    if nansum > 0:
+        # if the data contains nans, replace them with the minimum value of the non-nan elements
+        min_val = np.nanmin(data)
+        data = np.nan_to_num(data, nan=0.999 * min_val)
+        print(f"Nans are present in the data in {nansum} pixels")
+        print(f"Nans have been replaced with {0.999 * min_val}")
     fig, ax = plt.subplots(1, 1, figsize=figsize)
     ny, nx = data.shape  # Note: the shape is (ny, nx)
     extent = np.float32((0, nx, 0, ny)) * scale
@@ -529,12 +538,16 @@ def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=No
         print(f"Saving figure with results -> {figname}")
         fig.savefig(figname, dpi=250, format='pdf')
     plt.show()
+    if return_fig:
+        return fig
+    else:
+        return None
 
 
 def plot_images(data_list, scale=1, save_fig=False, figsize=None, vmin=None, vmax=None,
                 fontsize=12, figname='image.pdf', cmap='Greys_r', title=None, clip=False,
                 xrange=None, yrange=None, show_roi=False, grid=False, grid_shape=None, cb_pad=0.1,
-                fig_title='Image', verbose=False, scale_unit=None, aspect='equal'):
+                fig_title='Image', verbose=False, scale_unit=None, aspect='equal', return_fig=False):
     """
     Plots multiple images in a specified grid layout.
 
@@ -558,6 +571,7 @@ def plot_images(data_list, scale=1, save_fig=False, figsize=None, vmin=None, vma
     - cb_pad (float): Padding for the colorbar.
     - scale_unit (str): Unit of the x and y axes.
     - aspect (str): Aspect ratio of the image.
+    - return_fig (bool): If True, return the figure object.
 
     Returns:
     - None
@@ -633,6 +647,10 @@ def plot_images(data_list, scale=1, save_fig=False, figsize=None, vmin=None, vma
         print(f"Saving figure with results -> {figname}")
         fig.savefig(figname, dpi=250, format='pdf')
     plt.show()
+    if return_fig:
+        return fig
+    else:
+        return None
 
 
 def interactive_fov_selection(crisp_im, scale=1):
