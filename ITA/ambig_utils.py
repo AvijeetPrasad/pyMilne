@@ -1,6 +1,7 @@
 import subprocess
 import os
 import numpy as np
+import inversion_utils as iu
 
 
 def write_ambig_input(outdir, pix, pbr, lonlat, blos, bhor, bazi, verbose=False):
@@ -12,7 +13,7 @@ def write_ambig_input(outdir, pix, pbr, lonlat, blos, bhor, bazi, verbose=False)
     ny (int): Number of pixels along y-axis.
     outdir (str): Output directory.
     pix (tuple): Pixel size (xpix, ypix).
-    pbr (tuple): Parameters b, p, and radius.
+    pbr (tuple): Parameters p, b, and radius.
     lonlat (tuple): Longitude and latitude (theta, phi).
     blos (np.ndarray): 2D array for blos.
     bhor (np.ndarray): 2D array for bhor.
@@ -21,7 +22,7 @@ def write_ambig_input(outdir, pix, pbr, lonlat, blos, bhor, bazi, verbose=False)
     ny, nx = blos.shape
     xpix = pix
     ypix = pix
-    b, p, radius = pbr
+    p, b, radius = pbr
     theta, phi = lonlat
 
     # outfile = f'{outdir}/input.dat'
@@ -31,7 +32,7 @@ def write_ambig_input(outdir, pix, pbr, lonlat, blos, bhor, bazi, verbose=False)
         # Write header information with adjusted formatting
         file.write(f'{nx} {ny} nx ny\n')
         file.write(f'{xpix:.6f} {ypix:.6f} xpix ypix\n')
-        file.write(f'{b:.6f} {p:.6f} {radius:.6f} b p radius\n')
+        file.write(f'{p:.6f} {b:.6f} {radius:.6f} b p radius\n')
         file.write(f'{theta:.6f} {phi:.6f} theta phi\n')
 
         # Formatting string for the field data
@@ -84,6 +85,74 @@ def run_command(command, verbose=True):
         print(f"Command failed with return code {return_code}")
     else:
         print("Command completed successfully")
+
+
+def run_ambig_executable(ambig_executable_path, ambig_par, prefix, ysize, xsize, save_dir='.',
+                         ambig_executable_name='ambig', verbose=False):
+    """
+    Run the ambig executable with the ambig_par file as input, process the output azimuth data,
+    and save the processed file to the specified directory with a given prefix.
+
+    Parameters:
+    - ambig_executable_path (str): Directory where the ambig executable is located.
+    - ambig_executable_name (str): Name of the ambig executable. Default is 'ambig'.
+    - ambig_par (str): Path to the ambig_par file.
+    - save_dir (str): Directory to save the processed azimuth data file. Default is the current directory.
+    - prefix (str): Prefix to append to the saved file name.
+    - ysize (int): Size of the y-dimension of the output data.
+    - xsize (int): Size of the x-dimension of the output data.
+    - verbose (bool): If True, print detailed information and plot the azimuth angle.
+
+    Returns:
+    - phi (np.ndarray): Processed azimuth data with values in the range 0 to 2*pi.
+
+    # Example usage:
+    # phi = run_ambig_executable(ambig_executable_path, ambig_par, prefix='temp_', save_dir='.',
+    #       ysize=320, xsize=320, verbose=True)
+    """
+
+    # Construct the full path to the executable
+    ambig_path = os.path.join(ambig_executable_path, ambig_executable_name)
+
+    # Construct and run the command
+    command = f"{ambig_path} {ambig_par}"
+    try:
+        os.system(command)
+    except Exception as e:
+        raise RuntimeError(f"Failed to run the command '{command}': {e}")
+
+    # Define the output file names
+    azimuth_dat = 'azimuth.dat'
+    azimuth_dat_copy = os.path.join(save_dir, prefix + 'azimuth.dat')
+
+    # Copy the azimuth.dat file to the save directory
+    try:
+        os.system(f'cp {azimuth_dat} {azimuth_dat_copy}')
+    except Exception as e:
+        raise RuntimeError(f"Failed to copy file {azimuth_dat} to {azimuth_dat_copy}: {e}")
+
+    if verbose:
+        print(f'azimuth.dat copied to {azimuth_dat_copy}')
+
+    # Read the azimuth.dat file
+    try:
+        phi = read_azimuth_dat_file(azimuth_dat, (ysize, xsize))
+    except Exception as e:
+        raise RuntimeError(f"Failed to read azimuth.dat file: {e}")
+
+    # Set the phi range to 0 to 2 pi instead of -pi to pi
+    phi = (phi + 2 * np.pi) % (2 * np.pi)
+
+    if verbose:
+        try:
+            iu.plot_image(phi, cmap='twilight', figsize=(6, 6), title='Azimuth angle')
+            print(f'phi shape: {phi.shape}')
+            print(f'phi min: {phi.min()}')
+            print(f'phi max: {phi.max()}')
+        except Exception as e:
+            raise RuntimeError(f"Failed to plot the azimuth data: {e}")
+
+    return phi
 
 
 def read_azimuth_dat_file(file_path, new_shape, verbose=False):
@@ -467,8 +536,8 @@ def get_par_range(param_name, start=None, end=None, step=None, verbose=False):
     }
 
     ranged_params = {
-        'athresh': (0, 400),
-        'bthresh': (0, 500),
+        'athresh': (0, 600),
+        'bthresh': (0, 800),
         'lambda': (0, 1),
         'tfac0': (1.0, 3.0),
         'tfactr': (0, 1),
