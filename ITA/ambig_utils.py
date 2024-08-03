@@ -2,6 +2,8 @@ import subprocess
 import os
 import numpy as np
 import inversion_utils as iu
+from scipy.ndimage import shift, gaussian_filter
+from scipy.stats import skew
 
 
 def write_ambig_input(outdir, pix, pbr, lonlat, blos, bhor, bazi, verbose=False):
@@ -564,3 +566,66 @@ def get_par_range(param_name, start=None, end=None, step=None, verbose=False):
             return np.arange(start, end + step, step)
     else:
         raise ValueError(f"Unknown parameter name: {param_name}")
+
+
+def disambiguation_metrics(btrans, azimuth, bthresh=400):
+    """
+    Calculate disambiguation metrics based on the given parameters.
+
+    Parameters:
+    btrans (np.ndarray): Transverse magnetic field.
+    azimuth (np.ndarray): Azimuthal angle.
+    bthresh (float): Threshold for weak Btrans.
+
+    Returns:
+    dict: A dictionary containing the calculated metrics.
+    """
+
+    # Calculate the magnetic field components bx, by from btrans
+    bx = btrans * np.cos(azimuth)
+    by = btrans * np.sin(azimuth)
+
+    # Calculate the shifted azimuth
+    shifted_azimuth = shift(azimuth, [1, 0], mode='nearest')
+
+    # Convert degrees to radians if necessary (assuming !dtor is a constant for degree to radian conversion)
+    degrees_to_radians = np.pi / 180.0
+
+    # Calculate the mean of the given formula
+    mean_azimuth_difference = np.mean(-1 * np.cos(shifted_azimuth - azimuth) * degrees_to_radians * btrans)
+
+    # Calculate partial derivatives using numpy.gradient
+    partial_derivative_by_x = np.gradient(by, axis=1)
+    partial_derivative_bx_y = np.gradient(bx, axis=0)
+
+    # Calculate the vertical current density Jz
+    vertical_current_density = partial_derivative_by_x - partial_derivative_bx_y
+
+    # Calculate the total and skew of |Jz| where Btrans is weak
+    weak_btrans_mask = btrans < bthresh
+    mean_abs_vertical_current_density = np.mean(np.abs(vertical_current_density[weak_btrans_mask]))
+    skew_abs_vertical_current_density = skew(np.abs(vertical_current_density[weak_btrans_mask]))
+
+    # Calculate the gradient magnitude of Bx
+    gradient_magnitude_bx = np.hypot(np.gradient(bx, axis=0), np.gradient(bx, axis=1))
+
+    # Apply Sobel filter to gradient magnitude of Bx and smooth
+    sobel_gradient_magnitude_bx = np.hypot(np.gradient(gradient_magnitude_bx, axis=0),
+                                           np.gradient(gradient_magnitude_bx, axis=1))
+    smoothed_sobel_gradient_magnitude_bx = gaussian_filter(sobel_gradient_magnitude_bx, sigma=5)
+    mean_smoothed_sobel_gradient = np.mean(smoothed_sobel_gradient_magnitude_bx[weak_btrans_mask])
+
+    # Sum the absolute values of all the metrics to get a single metric for comparison
+    total_abs_metric = np.abs(mean_azimuth_difference) + mean_abs_vertical_current_density + \
+        np.abs(skew_abs_vertical_current_density) + mean_smoothed_sobel_gradient
+
+    # Create a dictionary to store the metrics
+    metrics = {
+        'mean_azimuth_difference': mean_azimuth_difference,
+        'mean_abs_vertical_current_density': mean_abs_vertical_current_density,
+        'skew_abs_vertical_current_density': skew_abs_vertical_current_density,
+        'mean_smoothed_sobel_gradient': mean_smoothed_sobel_gradient,
+        'total_abs_metric': total_abs_metric
+    }
+
+    return metrics
