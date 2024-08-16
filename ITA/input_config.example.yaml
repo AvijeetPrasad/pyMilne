@@ -1,3 +1,4 @@
+# ----------------------- pyMilne Inversion configuration --------------------------------
 # # Data directory
 # data_dir: "/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/"
 data_dir: '/mn/stornext/d18/lapalma/reduc/2021/2021-06-22/CRISP/cubes_nb/'
@@ -79,55 +80,21 @@ inversion_save_errors_lp: true
 # Delete temporary files after inversion
 delete_temp_files: true
 
+# -------------------------- Ambiguity resolution config --------------------------
+# Ambiguity resolution flag
+run_ambiguity_resolution: true
+# Path of the ambig executable obtained from the compiling the ME0-2.1.1 Fortran code
+ambig_executable_path: '/mn/stornext/u3/avijeetp/codes/ambiguity_resolution/ME0-2.1.1/'
 
+# Path of the ambig_par file which is the input file for the ambig executable
+ambig_par: '/mn/stornext/u3/avijeetp/codes/pyMilne/ITA/ambig_par'
 
+# Path of the fcube files obtained from the inversion, 
+ambig_input_dir: '/mn/stornext/d9/data/avijeetp/1_Projects/33_SST/2022-06-24/northup/' # if absent, save_dir is used
+ambig_save_dir: '/mn/stornext/d9/data/avijeetp/1_Projects/33_SST/2022-06-24/northup/' # if absent, save_dir is used
+fbazi: 'Bazi_6173_2022-06-26_T073626_2022-06-26_T094322_t_0-189.fcube'  # azimuth file
+fbhor: 'Bhor_6173_2022-06-26_T073626_2022-06-26_T094322_t_0-189.fcube'  # horizontal field file
+fblos: 'Blos_6173_2022-06-26_T073626_2022-06-26_T094322_t_0-189.fcube'  # line of sight field file
 
-
-
-
-
-
-### ------ Small scale anemone jet ---------
-# datadir = '/mn/stornext/d18/lapalma/reduc/2024/2024-05-21/CRISP/cubes_nb/'
-# crisp_im = datadir + 'nb_6173_2024-05-21T10:19:04_10:19:04=0-52_stokes_corrected_im.fits'
-# blos_cube = datadir + 'Blos.6173_2024-05-21T10:19:04.icube'
-# bhor_cube = datadir + 'Bhor.6173_2024-05-21T10:19:04.icube'
-# xorg = 1110
-# xsize = 800
-# yorg = 570
-# ysize = 800
-# tt = 8
-# is_north_up = True
-# shape = 'circle'
-# scale = 0.044 # arcsec/pixel
-# crop = False
-
-### Sunspot data set close to center also observed with Hinode
-# datadir = '/mn/stornext/d18/lapalma/reduc/2020/2020-08-07/CRISP/cubes_nb/'
-# crisp_im = datadir + 'nb_6173_2020-08-07T08:22:14_scans=0-56_stokes_corrected_im.fits'
-# blos_cube = datadir + 'Blos.6173_2020-08-07T08:22:14.icube'
-# bhor_cube = datadir + 'Bhor.6173_2020-08-07T08:22:14.icube'
-# xorg = 200
-# xsize = 480
-# yorg = 360
-# ysize = 400
-# tt = 0
-# scale = 0.058 # arcsec/pixel
-# is_north_up = False
-# crop = False
-# shape = 'square'
-
-### QS dataset used by Aditi
-# datadir = '/mn/stornext/d18/lapalma/reduc/2021/2021-06-22/CRISP/cubes_nb/'
-# crisp_im = datadir + 'nb_6173_2021-06-22T08:17:48_scans=0-162_stokes_corrected_im.fits'
-# blos_cube = datadir + 'Blos.6173_2021-06-22T08:17:48.icube'
-# bhor_cube = datadir + 'Bhor.6173_2021-06-22T08:17:48.icube'
-# xsize = 256
-# ysize = 256
-# xorg = 273
-# yorg = 420
-# tt = 41
-# scale = 0.058 # arcsec/pixel
-# shape = 'square'
-# crop = False
-# is_north_up = False
+# Rescale?
+rescale: 1  # Scale down the cropped image by this factor (only for ambiguity resolution for now)

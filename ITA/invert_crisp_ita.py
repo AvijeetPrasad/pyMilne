@@ -327,8 +327,8 @@ for var in inversion_save_list:
 
     if var in inversion_save_fits_list:
         # Save the full variable data
-        out_file_name = os.path.join(save_dir, f'{sav_var}_{cen_wav}_{obs_start_time}_{
-                                     obs_end_time}_t_{time_index_range}.fits')
+        out_file_name = os.path.join(save_dir, f'{sav_var}_{cen_wav}_{obs_start_time}_\
+                                     {obs_end_time}_t_{time_index_range}.fits')
         iu.save_fits(full_var_data, var_header, out_file_name, overwrite=True, verbose=verbose)
         if inversion_save_errors_fits and sav_var != 'Nan_mask':
             err_out_file_name = os.path.join(save_dir, f'{sav_var}_err_{cen_wav}_{obs_start_time}_{
@@ -344,7 +344,7 @@ for var in inversion_save_list:
 
         if inversion_save_errors_lp and sav_var != 'Nan_mask':
             lp_err_out_file_name = os.path.join(save_dir, f'{sav_var}_err_{cen_wav}_{obs_start_time}_{
-                                                obs_end_time}_nt_{time_index_range}.fcube')
+                                                obs_end_time}_t_{time_index_range}.fcube')
             lp_err_data = np.float32(rearrange(full_err_data, 'nt nx ny -> nx ny nt'))
             lp.writeto(lp_err_out_file_name, lp_err_data, extraheader='', dtype=None, verbose=True, append=False)
 
