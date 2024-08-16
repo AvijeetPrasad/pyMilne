@@ -1217,7 +1217,6 @@ def check_input_config(config, confirm=True, pprint=True):
     config.setdefault('ysize', fits_header['NAXIS2'])
 
     crop = config['crop']
-    rescale = config['rescale']
     check_crop = config['check_crop']
     if crop and check_crop:
         xorg, yorg, xsize, ysize = interactive_fov_selection(crisp_im, scale=1)
@@ -1272,6 +1271,17 @@ def check_input_config(config, confirm=True, pprint=True):
     xrange = [xorg, xorg + xsize]
     yrange = [yorg, yorg + ysize]
 
+    # Load the ambiguity resolution parameters if present
+    run_ambiguity_resolution = config.get('run_ambiguity_resolution', False)
+    ambig_executable_path = config.get('ambig_executable_path', '.')
+    ambig_par = config.get('ambig_par', 'ambig_par')
+    ambig_input_dir = config.get('ambig_input_dir', save_dir)
+    fbazi = config.get('fbazi', None)
+    fbhor = config.get('fbhor', None)
+    fblos = config.get('fblos', None)
+    rescale = config.get('rescale', 1)
+    ambig_save_dir = config.get('ambig_save_dir', save_dir)
+
     # Print the parameters to verify
     if pprint:
         print("\nInput Configuration Parameters:")
@@ -1283,6 +1293,7 @@ def check_input_config(config, confirm=True, pprint=True):
         print(f"Best frame    : {best_frame_index}")
         print(f"Scale         : {scale}")
         print(f"Is North Up   : {is_north_up}")
+        print(f"Flip LR       : {flip_lr}")
         print(f"Shape         : {shape}")
         print(f"Crop          : {crop}")
         print(f"xorg          : {xorg}")
@@ -1298,6 +1309,16 @@ def check_input_config(config, confirm=True, pprint=True):
         print(f"Inversion Save LP List: {inversion_save_lp_list}")
         print(f"Inversion Save Errors LP: {inversion_save_errors_lp}")
         print(f"Delete Temp Files: {delete_temp_files}")
+        if run_ambiguity_resolution:
+            print("\nAmbiguity Resolution Parameters:")
+            print(f"Ambiguity Resolution Executable Path: {ambig_executable_path}")
+            print(f"Ambiguity Resolution Parameter File : {ambig_par}")
+            print(f"Ambiguity Resolution Input Directory: {ambig_input_dir}")
+            print(f"Bazi filename                       : {fbazi}")
+            print(f"Bhor filename                       : {fbhor}")
+            print(f"Blos filename                       : {fblos}")
+            print(f"rescale                             : {rescale}")
+            print(f"Ambiguity Resolution Save Directory : {ambig_save_dir}")
 
     print("\n\nObservation Details:")
     print("=" * 64)
@@ -1344,7 +1365,15 @@ def check_input_config(config, confirm=True, pprint=True):
         'inversion_save_errors_lp': inversion_save_errors_lp,
         'wfa_blos_map': wfa_blos_map, 'rescale': rescale, 'delete_temp_files': delete_temp_files,
         'flip_lr': flip_lr,
-        'blos_min': blos_min, 'blos_max': blos_max
+        'blos_min': blos_min, 'blos_max': blos_max,
+        'run_ambiguity_resolution': run_ambiguity_resolution,
+        'ambig_executable_path': ambig_executable_path,
+        'ambig_par': ambig_par,
+        'ambig_input_dir': ambig_input_dir,
+        'fbazi': fbazi,
+        'fbhor': fbhor,
+        'fblos': fblos,
+        'ambig_save_dir': ambig_save_dir
     }
     return config_dict
 

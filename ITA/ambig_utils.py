@@ -572,13 +572,13 @@ def get_par_range(param_name, start=None, end=None, step=None, verbose=False):
         if step is None:
             # Generate three points: min, max, and middle
             out_range = np.array([start, (start + end) / 2.0, end])
-            # Round the values to 2 decimal places
-            out_range = np.round(out_range, 2)
+            # Round the values to 3 decimal places
+            out_range = np.round(out_range, 3)
             return out_range
         else:
             out_range = np.arange(start, end + step, step)
-            # Round the values to 2 decimal places
-            out_range = np.round(out_range, 2)
+            # Round the values to 3 decimal places
+            out_range = np.round(out_range, 3)
             return out_range
     else:
         raise ValueError(f"Unknown parameter name: {param_name}")
@@ -717,3 +717,16 @@ def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, plot_fig=F
         print(f"Saved figure: {figname}")
 
     return bx, by, bz, phi, metrics, fig
+
+
+def is_notebook():
+    """
+    Check if the code is running in a Jupyter notebook.
+    """
+    try:
+        from IPython import get_ipython
+        if 'IPKernelApp' not in get_ipython().config:  # Check if the IPython kernel is active
+            return False
+    except ImportError:
+        return False
+    return True
