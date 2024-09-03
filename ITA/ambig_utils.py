@@ -660,7 +660,7 @@ def disambiguation_metrics(btrans, azimuth, bthresh=400, data_mask=None):
     return metrics
 
 
-def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, plot_fig=False,
+def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, plot_fig=True,
                      save_dir='.', save_fig=False, data_mask=None, timeit=True):
     """
     Calculate and plot disambiguation metrics.
@@ -671,7 +671,7 @@ def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, plot_fig=F
     par_file (str): Path to the parameter file.
     ambig_executable_path (str): Path to the ambiguity resolution executable.
     id (str): Identifier for the plot title.
-    plot_fig (bool): Flag to plot the results. Default is False.
+    plot_fig (bool): Flag to plot the results. Default is True.
     save_dir (str): Directory to save the files. Default is '.'.
     save_fig (bool): Flag to save the plot. Default is False.
     data_mask (np.ndarray, optional): Mask array indicating regions to include in calculations.

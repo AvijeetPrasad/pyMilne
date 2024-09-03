@@ -1277,11 +1277,37 @@ def check_input_config(config, confirm=True, pprint=True):
     ambig_executable_path = config.get('ambig_executable_path', '.')
     ambig_par = config.get('ambig_par', 'ambig_par')
     ambig_input_dir = config.get('ambig_input_dir', save_dir)
+    ambig_time_range = config.get('ambig_time_range', time_range)
     fbazi = config.get('fbazi', None)
     fbhor = config.get('fbhor', None)
     fblos = config.get('fblos', None)
     rescale = config.get('rescale', 1)
     ambig_save_dir = config.get('ambig_save_dir', save_dir)
+    ambig_save_fits = config.get('ambig_save_fits', False)
+    ambig_save_lp = config.get('ambig_save_lp', False)
+    delete_ambig_temp_files = config.get('delete_ambig_temp_files', True)
+    ambig_verbose = config.get('ambig_verbose', False)
+
+    if ambig_time_range == 'best':
+        ambig_time_range = [best_frame_index]
+    elif ambig_time_range == 'first':
+        ambig_time_range = [0]
+    elif ambig_time_range == 'full':
+        ambig_time_range = list(range(nt))
+    elif isinstance(ambig_time_range, list):
+        if len(ambig_time_range) == 1:
+            ambig_time_range = ambig_time_range
+        if len(ambig_time_range) == 2:
+            if ambig_time_range[0] == ambig_time_range[1]:
+                ambig_time_range = [ambig_time_range[0]]
+            else:
+                ambig_time_range = list(range(ambig_time_range[0], ambig_time_range[1]))
+        elif len(ambig_time_range) == 3:
+            ambig_time_range = list(range(ambig_time_range[0], ambig_time_range[1], ambig_time_range[2]))
+    else:
+        print("Error: Invalid ambig_time_range format")
+        print(f"Available options: {time_range_options}")
+        sys.exit(1)
 
     # Print the parameters to verify
     if pprint:
@@ -1315,11 +1341,16 @@ def check_input_config(config, confirm=True, pprint=True):
             print(f"Ambiguity Resolution Executable Path: {ambig_executable_path}")
             print(f"Ambiguity Resolution Parameter File : {ambig_par}")
             print(f"Ambiguity Resolution Input Directory: {ambig_input_dir}")
+            print(f"Ambiguity Resolution Time Range      : {ambig_time_range}")
             print(f"Bazi filename                       : {fbazi}")
             print(f"Bhor filename                       : {fbhor}")
             print(f"Blos filename                       : {fblos}")
             print(f"rescale                             : {rescale}")
             print(f"Ambiguity Resolution Save Directory : {ambig_save_dir}")
+            print(f"Ambiguity Resolution Save FITS      : {ambig_save_fits}")
+            print(f"Ambiguity Resolution Save LP        : {ambig_save_lp}")
+            print(f"Delete Ambiguity Resolution Temp Files: {delete_ambig_temp_files}")
+            print(f"Verbosity for Ambiguity Resolution  : {ambig_verbose}")
 
     print("\n\nObservation Details:")
     print("=" * 64)
@@ -1374,7 +1405,12 @@ def check_input_config(config, confirm=True, pprint=True):
         'fbazi': fbazi,
         'fbhor': fbhor,
         'fblos': fblos,
-        'ambig_save_dir': ambig_save_dir
+        'ambig_save_dir': ambig_save_dir,
+        'ambig_time_range': ambig_time_range,
+        'ambig_save_fits': ambig_save_fits,
+        'ambig_save_lp': ambig_save_lp,
+        'delete_ambig_temp_files': delete_ambig_temp_files,
+        'ambig_verbose': ambig_verbose
     }
     return config_dict
 

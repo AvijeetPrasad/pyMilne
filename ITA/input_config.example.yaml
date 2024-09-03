@@ -96,5 +96,18 @@ fbazi: 'Bazi_6173_2022-06-26_T073626_2022-06-26_T094322_t_0-189.fcube'  # azimut
 fbhor: 'Bhor_6173_2022-06-26_T073626_2022-06-26_T094322_t_0-189.fcube'  # horizontal field file
 fblos: 'Blos_6173_2022-06-26_T073626_2022-06-26_T094322_t_0-189.fcube'  # line of sight field file
 
+# Time range for the ambiguity resolution in the format [start_time_index, end_time_index], [start_time_index, end_time_index, step_size], "first", "best", "full"
+ambig_time_range: "best"
+
 # Rescale?
 rescale: 1  # Scale down the cropped image by this factor (only for ambiguity resolution for now)
+
+# Save ambiguity resolution results (Bx, By, Bz, Bazi) as fits
+ambig_save_fits: false
+# Save ambiguity resolution results (Bx, By, Bz, Bazi) as LP cubes
+ambig_save_lp: true
+# Delete temporary files after ambiguity resolution
+delete_ambig_temp_files: true
+
+# set the verbose flag for the ambiguity resolution
+ambig_verbose: false
