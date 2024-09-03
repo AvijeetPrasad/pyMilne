@@ -37,7 +37,6 @@ nIter3: 200
 chi2_thres3: 1
 alpha_strength: 30.0 # Strength factor of the regularization
 alpha_list: [30, 0.5, 2, 0.01, 0.1, 0.01, 0.1, 0.01, 0.01] # Individual regularization factors for each parameter
-
 # Replace NaN values for the masked pixels after the inversion results
 nan_mask_replacements: [0, 0, 0, 0, 0, 0, 0, 0, 0]
 

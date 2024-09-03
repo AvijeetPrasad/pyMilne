@@ -547,7 +547,8 @@ def plot_image(data, scale=1, save_fig=False, figsize=(8, 8), vmin=None, vmax=No
 def plot_images(data_list, scale=1, save_fig=False, figsize=None, vmin=None, vmax=None,
                 fontsize=12, figname='image.pdf', cmap='Greys_r', title=None, clip=False,
                 xrange=None, yrange=None, show_roi=False, grid=False, grid_shape=None, cb_pad=0.1,
-                fig_title='Image', verbose=False, scale_unit=None, aspect='equal', return_fig=False):
+                fig_title='Image', verbose=False, scale_unit=None, aspect='equal', return_fig=False,
+                interpolation='nearest'):
     """
     Plots multiple images in a specified grid layout.
 
@@ -609,7 +610,7 @@ def plot_images(data_list, scale=1, save_fig=False, figsize=None, vmin=None, vma
         extent = np.float32((0, nx, 0, ny)) * scale
         if clip:
             data = np.clip(data, a_min=vmin[i], a_max=vmax[i])
-        img = ax.imshow(data, cmap=cmap[i], interpolation='nearest',
+        img = ax.imshow(data, cmap=cmap[i], interpolation=interpolation,
                         origin='lower', aspect=aspect, extent=extent, vmin=vmin[i], vmax=vmax[i])
         ax.tick_params(axis='both', which='major', labelsize=0.8 * fontsize)
         if scale_unit is None:
