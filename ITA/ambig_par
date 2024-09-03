@@ -1,7 +1,7 @@
 ambig_input.dat
 0       0       3       1       1             irflag   ibflag   iaflag   igflag   ipflag
 128     25      10      10                    npad     nap      ntx      nty
-200    600      1       1                     athresh  bthresh  nerode   ngrow
+200.0   600.0   1       1                     athresh  bthresh  nerode   ngrow
 0       1       0                             iaunit   ipunit   incflag
 0       2       100                           iseed    iverb    neq
 1.0     1.5     0.995                         lambda   tfac0    tfactr

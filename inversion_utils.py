@@ -640,7 +640,7 @@ def plot_images(data_list, scale=1, save_fig=False, figsize=None, vmin=None, vma
             cbar.set_label(f"{title[i]}", fontsize=fontsize)
         cbar.ax.tick_params(labelsize=0.8 * fontsize)
     # Add the figure title
-    fig.suptitle(fig_title, fontsize=1.2 * fontsize)
+    fig.suptitle(fig_title, fontsize=1.2 * fontsize, y=1.0)
 
     fig.tight_layout()
 
