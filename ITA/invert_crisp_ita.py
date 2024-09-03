@@ -355,10 +355,6 @@ for var in inversion_save_list:
                 print(f'Deleting temporary file: {temp_file}')
             os.remove(temp_file)
 
-# %%
-lp_out_file_name
-
-# %%
 
 print('=== Save the Run Config ===')
 # combine input_config and inversion_config dictionaries
