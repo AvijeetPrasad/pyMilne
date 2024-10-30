@@ -548,7 +548,7 @@ def plot_images(data_list, scale=1, save_fig=False, figsize=None, vmin=None, vma
                 fontsize=12, figname='image.pdf', cmap='Greys_r', title=None, clip=False,
                 xrange=None, yrange=None, show_roi=False, grid=False, grid_shape=None, cb_pad=0.1,
                 fig_title='Image', verbose=False, scale_unit=None, aspect='equal', return_fig=False,
-                interpolation='nearest'):
+                interpolation='nearest', show_fig=True):
     """
     Plots multiple images in a specified grid layout.
 
@@ -573,6 +573,8 @@ def plot_images(data_list, scale=1, save_fig=False, figsize=None, vmin=None, vma
     - scale_unit (str): Unit of the x and y axes.
     - aspect (str): Aspect ratio of the image.
     - return_fig (bool): If True, return the figure object.
+    - show_fig (bool): If True, display the figure.
+    - interpolation (str): Interpolation method for displaying the image.
 
     Returns:
     - None
@@ -647,7 +649,11 @@ def plot_images(data_list, scale=1, save_fig=False, figsize=None, vmin=None, vma
     if save_fig:
         print(f"Saving figure with results -> {figname}")
         fig.savefig(figname, dpi=250, format='pdf')
-    plt.show()
+    if show_fig:
+        plt.show()
+    # Close the figure after saving to avoid display in Jupyter
+    if not show_fig and not return_fig:
+        plt.close(fig)  # This prevents the automatic display
     if return_fig:
         return fig
     else:
@@ -1103,7 +1109,7 @@ def load_yaml_config(file_path):
         return yaml.safe_load(file)
 
 
-def check_input_config(config, confirm=True, pprint=True):
+def check_input_config(config, confirm=True, pprint=True, show_plots=False):
     # Set default values for parameters
     defaults = {
         'time_range': 'best',
@@ -1363,7 +1369,7 @@ def check_input_config(config, confirm=True, pprint=True):
         fov = 0
         print('Data is North up. Setting fov_angle to 0 deg.')
     wfa_blos_map = None
-    if verbose:
+    if show_plots:
         # Plot the contrast as a function of the time index
         plot_contrast(contrasts, figsize=(6, 3))
         plot_image(best_frame, title=f'I (Frame: {best_frame_index})', cmap='gray', scale=scale, figsize=(6, 6),

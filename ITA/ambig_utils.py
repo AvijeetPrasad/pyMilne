@@ -4,6 +4,7 @@ import numpy as np
 import inversion_utils as iu
 from scipy.ndimage import shift, gaussian_filter
 from scipy.stats import skew
+import datetime
 
 
 def write_ambig_input(outdir, pix, pbr, lonlat, blos, bhor, bazi, verbose=False):
@@ -27,8 +28,12 @@ def write_ambig_input(outdir, pix, pbr, lonlat, blos, bhor, bazi, verbose=False)
     p, b, radius = pbr
     theta, phi = lonlat
 
+    # genrate a random 8 character string
+    random_12char_inp = ''.join(np.random.choice(list('abcdefghijklmnopqrstuvwxyz'), 12))
+    # generate a unique prefix based on current time
+    prefix = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     # outfile = f'{outdir}/input.dat'
-    outfile = os.path.join(outdir, 'ambig_input.dat')
+    outfile = os.path.join(outdir, f'{prefix}_{random_12char_inp}_ambig_input.dat')
 
     with open(outfile, 'w') as file:
         # Write header information with adjusted formatting
@@ -48,7 +53,7 @@ def write_ambig_input(outdir, pix, pbr, lonlat, blos, bhor, bazi, verbose=False)
         for j in range(ny):
             file.write(fmtstr.format(*bazi[j]))
     if verbose:
-        print(f'Output file: {outfile}')
+        print(f'Ambig input file: {outfile}')
     return outfile
 
 
@@ -660,8 +665,9 @@ def disambiguation_metrics(btrans, azimuth, bthresh=400, data_mask=None):
     return metrics
 
 
-def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, plot_fig=True,
-                     save_dir='.', save_fig=False, data_mask=None, timeit=True):
+def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, show_fig=True,
+                     save_dir='.', save_fig=False, data_mask=None, timeit=True,
+                     ambig_input='ambig_input.dat'):
     """
     Calculate and plot disambiguation metrics.
 
@@ -671,7 +677,7 @@ def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, plot_fig=T
     par_file (str): Path to the parameter file.
     ambig_executable_path (str): Path to the ambiguity resolution executable.
     id (str): Identifier for the plot title.
-    plot_fig (bool): Flag to plot the results. Default is True.
+    show_fig (bool): Flag to plot the results. Default is True.
     save_dir (str): Directory to save the files. Default is '.'.
     save_fig (bool): Flag to save the plot. Default is False.
     data_mask (np.ndarray, optional): Mask array indicating regions to include in calculations.
@@ -686,10 +692,23 @@ def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, plot_fig=T
     ysize, xsize = blos.shape
     # Read parameters from the ambiguity parameter file
     params = read_ambig_par_file(par_file)
+    params['filename'] = ambig_input
+    # generate a unique prefix based on current time
+    # generate a random 8 character string
+    random_12char_par = ''.join(np.random.choice(list('abcdefghijklmnopqrstuvwxyz'), 12))
+    prefix = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    # Write the input file for the ambiguity resolution
+    temp_par_file_path = os.path.join(save_dir, f'{prefix}_{random_12char_par}_ambig_par')
+    par_file = write_ambig_par_file(temp_par_file_path, params, pprint=True)
 
     # Run the ambiguity resolution executable to get the azimuthal angle phi
     phi = run_ambig_executable(ambig_executable_path, par_file, prefix=f'{id}_',
                                save_dir=save_dir, ysize=ysize, xsize=xsize, verbose=False)
+
+    # Delete the ambig input and temp par files
+    os.remove(ambig_input)
+    os.remove(par_file)
+    print(f"Deleted files: {ambig_input}, {par_file}")
 
     # Calculate disambiguation metrics
     metrics = disambiguation_metrics(bhor, phi, bthresh=params['bthresh'], data_mask=data_mask)
@@ -706,17 +725,17 @@ def disambig_azimuth(bhor, blos, par_file, ambig_executable_path, id, plot_fig=T
     # Add runtime to metrics
     metrics['runtime'] = runtime
 
-    if plot_fig:
-        figname = os.path.join(save_dir, f'disambig_{id}.pdf')
-        # total_abs_metric = metrics['total_abs_metric']
-        fig_title = f'ID: {id}'
-        # Plot and optionally save the results
-        fig = iu.plot_images([bx, by, bz, phi], title=['Bx', 'By', 'Bz', 'Phi'], fontsize=20, figsize=(20, 22),
-                             cmap=['gray', 'gray', 'gray', 'twilight'], grid_shape=(2, 2), fig_title=fig_title,
-                             save_fig=save_fig, figname=figname, return_fig=True)
+    figname = os.path.join(save_dir, f'disambig_{id}.pdf')
+    # total_abs_metric = metrics['total_abs_metric']
+    fig_title = f'ID: {id}'
+    # Plot and optionally save the results
+    iu.plot_images([bx, by, bz, phi], title=['Bx', 'By', 'Bz', 'Phi'], fontsize=20, figsize=(20, 22),
+                   cmap=['gray', 'gray', 'gray', 'twilight'], grid_shape=(2, 2), fig_title=fig_title,
+                   save_fig=save_fig, figname=figname, return_fig=False, show_fig=show_fig)
+    if save_fig:
         print(f"Saved figure: {figname}")
 
-    return bx, by, bz, phi, metrics, fig
+    return bx, by, bz, phi  # , metrics, fig
 
 
 def is_notebook():
