@@ -273,7 +273,10 @@ def save_fits(data, header, filename, inv_comment=None, overwrite=False, verbose
 def get_wavelengths(name):
     io = fits.open(name)
     # Wavelength information for all wavelength points in the first time frame
-    wav_output = io[1].data[0][0][0, :, 0, 0, 2] * 10  # convert from nm to Angstrom
+    if io[1].data[0][0].ndim == 4:
+        wav_output = io[1].data[0][0][:, 0, 0, 2] * 10  # convert from nm to Angstrom
+    else:
+        wav_output = io[1].data[0][0][0, :, 0, 0, 2] * 10  # convert from nm to Angstrom
     return np.ascontiguousarray(wav_output, dtype='float64')
 
 
@@ -810,8 +813,12 @@ def get_fits_info(filename, verbose=False, pprint=True):
     mu = np.sqrt(1 - (rho / R_Sun_arcsec)**2)
 
     # Average wave and time on the last two dimensions
-    wave2 = np.mean(wave, axis=(2, 3)) * 10  # Convert to Angstroms (nt, nw)
-    time2 = np.mean(time, axis=(2, 3))
+    if nt == 1:  # for mosaics
+        wave2 = np.mean(wave, axis=(1, 2)) * 10  # Convert to Angstroms (nt, nw)
+        time2 = np.mean(time, axis=(1, 2))
+    else:
+        wave2 = np.mean(wave, axis=(2, 3)) * 10  # Convert to Angstroms (nt, nw)
+        time2 = np.mean(time, axis=(2, 3))
 
     # Convert DATE-BEG to a Time object
     start_time_astropy = Time(start_time_obs, format='isot', scale='utc')
@@ -820,15 +827,23 @@ def get_fits_info(filename, verbose=False, pprint=True):
     start_of_day = Time(f"{start_time_astropy.datetime.date()}T00:00:00", format='isot', scale='utc')
     time2_absolute = start_of_day + TimeDelta(time2, format='sec')
     time2_iso = time2_absolute.iso
-    start_times = time2_iso[:, 0]
+
+    if nt == 1:
+        start_times = [time2_iso[0]]
+    else:
+        start_times = time2_iso[:, 0]
     all_start_times = [t.split('.')[0] for t in start_times]
 
     # # Extract specific times and central wavelength
     # start_time_calculated = time2_iso[0, 0]
     # end_time_calculated = time2_iso[-1, -1]
     # center_time_calculated = time2_iso[nt // 2, ns // 2]
-    central_wavelength = wave2[0, nw // 2]
-    all_wavelengths = wave2[0]
+    if nt == 1:
+        central_wavelength = wave2[nw // 2]
+        all_wavelengths = wave2
+    else:
+        central_wavelength = wave2[0, nw // 2]
+        all_wavelengths = wave2[0]
 
     # Convert the times to the desired format without digits after seconds
     start_time_obs_str = start_time_obs.split('.')[0]
