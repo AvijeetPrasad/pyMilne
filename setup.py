@@ -20,7 +20,7 @@ if (plt.system() == 'Darwin'):
     link_opts = ["-stdlib=libc++", "-bundle", "-undefined",
                  "dynamic_lookup", "-fopenmp", "-lgomp"]
 else:
-    # root_dir = '/usr/'
+    root_dir = '/usr/'
     CC = 'gcc'
     CXX = 'g++'
     link_opts = ["-shared", "-fopenmp"]
@@ -54,8 +54,8 @@ comp_flags = ['-Ofast', '-g0', '-fstrict-aliasing', '-march=native',
 extension = Extension("pyMilne",
                       sources=["pyMilne.pyx", "src/wrapper_tools_spatially_coupled.cpp", "src/lm_sc.cpp",
                                "src/spatially_coupled_helper.cpp"],
-                      include_dirs=[
-                          "./", numpy.get_include(), './eigen3', root_dir+"/include/"],
+                      include_dirs=["./", numpy.get_include(), './eigen3', root_dir+"/include/",
+                                    root_dir+'/include/eigen3/'],
                       language="c++",
                       extra_compile_args=comp_flags,
                       extra_link_args=comp_flags+link_opts,
