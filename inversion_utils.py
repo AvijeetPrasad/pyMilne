@@ -1600,7 +1600,11 @@ def check_input_config_mosaic(config, confirm=True, pprint=True, show_plots=Fals
     # Check the input time_range is in the correct format
     time_range_options = "[start_time_index, end_time_index], [start_time_index, end_time_index, step_size],\
           'first', 'best, 'full'"
-    fits_info = get_fits_info(crisp_im[0], pprint=True)
+    # Get fits info for all files in the mosaic
+    if isinstance(crisp_im, list):
+        fits_info = [get_fits_info(file, pprint=(i == 0)) for i, file in enumerate(crisp_im)]
+    else:
+        fits_info = [get_fits_info(crisp_im, pprint=True)]
     time_range = config['time_range']
 
     if time_range == 'best':
@@ -1767,8 +1771,8 @@ def check_input_config_mosaic(config, confirm=True, pprint=True, show_plots=Fals
     print("\n\nObservation Details:")
     print("=" * 64)
 
-    t_obs = fits_info['avg_time_obs']
-    all_wavelengths = fits_info['all_wavelengths']
+    t_obs = fits_info[time_range[0]]['avg_time_obs']
+    all_wavelengths = fits_info[time_range[0]]['all_wavelengths']
     fov = fov_angle(t_obs)
     print(f'FOV angle from turret log: {fov:.2f} deg')
     if config['is_north_up']:
