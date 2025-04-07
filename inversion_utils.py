@@ -22,6 +22,7 @@ import psutil
 import helita_io_lp as lp
 from get_fov_angle import fov_angle
 from matplotlib.ticker import MaxNLocator
+import glob
 # Use the safe_import function to import custom modules safely
 # from load_env_and_set_pythonpath import safe_import
 # lp = safe_import('helita.io', 'lp')
@@ -36,6 +37,35 @@ class container:
 def load_crisp_fits(name, tt=0, crop=False, xrange=None, yrange=None, nan_to_num=True):
     # Load the FITS data
     datafits = fits.open(name, 'readonly')[0].data[tt, ...]
+
+    if nan_to_num:
+        # Replace NaNs with the minimum value of the non-NaN elements
+        min_val = np.nanmin(datafits)
+        datafits = np.nan_to_num(datafits, nan=0.999 * min_val)
+
+    # Normalize the data to average
+    qs_nom = np.nanmean(datafits[0, 0, :, :])
+    if qs_nom == 0:
+        raise ValueError("Normalization value (qs_nom) is zero, leading to potential division by zero.")
+    datafits = rearrange(datafits, 'ns nw ny nx -> ny nx ns nw') / qs_nom
+
+    if crop:
+        if xrange is not None and yrange is not None:
+            datafits = datafits[yrange[0]:yrange[1], xrange[0]:xrange[1], :, :]
+        else:
+            raise ValueError("Crop is set to True, but xrange or yrange is None.")
+
+    # Check for any remaining NaNs
+    if np.isnan(datafits).sum() > 0:
+        raise ValueError("NaNs are present in the data after processing.")
+
+    return np.ascontiguousarray(datafits, dtype='float64')
+
+
+def load_crisp_fits_mosaic(names, index=0, crop=False, xrange=None, yrange=None, nan_to_num=True):
+    # Load the FITS data from the specified index in the list of files
+    name = names[index]
+    datafits = fits.open(name, 'readonly')[0].data[0, ...]
 
     if nan_to_num:
         # Replace NaNs with the minimum value of the non-NaN elements
@@ -1031,6 +1061,46 @@ def load_crisp_fits_all_timesteps(name):
     return data_cube, mask
 
 
+def load_crisp_fits_all_timesteps_mosaic(name_list):
+    # Handle input as a list of filenames
+    if not isinstance(name_list, list):
+        name_list = [name_list]  # Convert single filename to list
+
+    nt = len(name_list)  # Number of timesteps is determined by number of files
+
+    # Initialize data_cube and mask
+    first_file = fits.open(name_list[0], 'readonly')
+    first_data = first_file[0].data
+    _, ns, nw, ny, nx = first_data.shape
+    first_file.close()
+
+    # Pre-allocate the data cube with the right dimensions
+    data_cube = np.zeros((nt, ny, nx), dtype='float64')
+    mask = np.zeros((nt, ny, nx), dtype=bool)
+
+    # Load each file and extract the data
+    for i, filename in enumerate(name_list):
+        hdul = fits.open(filename, 'readonly')
+        datafits = hdul[0].data
+        # Extract data for wavelength position ww=0 and stokes vector ss=0
+        data_cube[i] = datafits[0, 0, 0, :, :]
+        mask[i] = np.isnan(data_cube[i])
+        hdul.close()
+
+    # Replace NaNs with the minimum value of the non-NaN elements
+    min_val = np.nanmin(data_cube)
+    data_cube = np.nan_to_num(data_cube, nan=0.999 * min_val)
+
+    # Normalize the data to average
+    qs_nom = np.nanmean(data_cube)
+    if qs_nom == 0:
+        raise ValueError("Normalization value (qs_nom) is zero, leading to potential division by zero.")
+    data_cube /= qs_nom
+    data_cube = np.ascontiguousarray(data_cube, dtype='float64')
+
+    return data_cube, mask, nt
+
+
 def calculate_contrast(image, mask=None):
     """Calculate the contrast of a single image."""
     if mask is not None:
@@ -1395,6 +1465,329 @@ def check_input_config(config, confirm=True, pprint=True, show_plots=False):
         plot_image(wfa_blos_map, title=f'Blos (Frame: {best_frame_index})', cmap='gray', scale=scale, figsize=(6, 6),
                    show_roi=True, xrange=xrange, yrange=yrange)
         # Confirm the parameters from the user
+    if confirm:
+        validate_input = input("Do you want to proceed with these parameters? (y/n): ")
+        if validate_input.lower() != 'y':
+            print("Exiting the program.")
+            sys.exit(0)
+
+    # Return all the variables as a config dictionary
+    config_dict = {
+        'data_dir': data_dir, 'crisp_im': crisp_im, 'save_dir': save_dir,
+        'xorg': xorg, 'xsize': xsize, 'yorg': yorg, 'ysize': ysize, 'time_range': time_range, 'scale': scale,
+        'is_north_up': is_north_up, 'crop': crop, 'shape': shape, 'contrasts': contrasts, 'best_frame': best_frame,
+        'best_frame_index': best_frame_index,
+        'hmi_con_series': hmi_con_series, 'hmi_mag_series': hmi_mag_series, 'email': email, 'mask': mask,
+        'fits_header': fits_header, 'fits_info': fits_info, 'fov_angle': fov,
+        'plot_sst_pointings_flag': plot_sst_pointings_flag,
+        'plot_hmi_ic_mag_flag': plot_hmi_ic_mag_flag, 'plot_crisp_image_flag': plot_crisp_image_flag,
+        'xrange': xrange, 'yrange': yrange, 'verbose': verbose,
+        'inversion_save_fits_list': inversion_save_fits_list,
+        'inversion_save_errors_fits': inversion_save_errors_fits,
+        'inversion_save_lp_list': inversion_save_lp_list,
+        'inversion_save_errors_lp': inversion_save_errors_lp,
+        'wfa_blos_map': wfa_blos_map, 'rescale': rescale, 'delete_temp_files': delete_temp_files,
+        'flip_lr': flip_lr,
+        'blos_min': blos_min, 'blos_max': blos_max,
+        'run_ambiguity_resolution': run_ambiguity_resolution,
+        'ambig_executable_path': ambig_executable_path,
+        'ambig_par': ambig_par,
+        'ambig_input_dir': ambig_input_dir,
+        'fbazi': fbazi,
+        'fbhor': fbhor,
+        'fblos': fblos,
+        'ambig_save_dir': ambig_save_dir,
+        'ambig_time_range': ambig_time_range,
+        'ambig_save_fits': ambig_save_fits,
+        'ambig_save_lp': ambig_save_lp,
+        'delete_ambig_temp_files': delete_ambig_temp_files,
+        'ambig_verbose': ambig_verbose
+    }
+    return config_dict
+
+
+def check_input_config_mosaic(config, confirm=True, pprint=True, show_plots=False):
+    # Set default values for parameters
+    defaults = {
+        'time_range': 'best',
+        'xorg': 0,
+        'yorg': 0,
+        'scale': 0.044,
+        'is_north_up': True,
+        'flip_lr': False,
+        'crop': False,
+        'check_crop': False,
+        'rescale': 1,
+        'shape': 'circle',
+        'hmi_con_series': 'hmi.Ic_45s',
+        'hmi_mag_series': 'hmi.M_45s',
+        'email': '',
+        'plot_sst_pointings': False,
+        'plot_hmi_ic_mag': False,
+        'plot_crisp_image': False,
+        'verbose': True,
+        'inversion_save_fits_list': [],
+        'inversion_save_errors_fits': False,
+        'inversion_save_lp_list': [],
+        'inversion_save_errors_lp': False,
+        'delete_temp_files': True,
+        'blos_min': None,
+        'blos_max': None,
+        'run_ambiguity_resolution': False,
+        'ambig_executable_path': '.',
+        'ambig_par': 'ambig_par',
+        'ambig_save_fits': False,
+        'ambig_save_lp': False,
+        'delete_ambig_temp_files': True,
+        'ambig_verbose': False
+    }
+
+    # Update config with default values if keys are missing
+    for key, value in defaults.items():
+        config.setdefault(key, value)
+
+    required_keys = ['data_dir', 'crisp_im']
+
+    for key in required_keys:
+        if key not in config:
+            print(f"Error: Missing required configuration key '{key}'")
+            sys.exit(1)
+
+    data_dir = config['data_dir']
+
+    # check if the data directory exists, if not raise an error
+    if not os.path.exists(data_dir):
+        print(f"Error: Directory not found: '{data_dir}'")
+        sys.exit(1)
+
+    # Handle crisp_im as a potential wildcard pattern for mosaics
+    crisp_im_pattern = os.path.join(data_dir, config['crisp_im'])
+    matched_files = sorted(glob.glob(crisp_im_pattern))
+
+    if not matched_files:
+        print(f"Error: No files found matching pattern: '{crisp_im_pattern}'")
+        sys.exit(1)
+
+    # If it's a mosaic (multiple files matched), use the list of files
+    # Otherwise, use the single file path
+    crisp_im = matched_files if len(matched_files) > 1 else matched_files[0]
+
+    # check if the save directory exists, if not try to create it, if not raise an error
+    save_dir = config.get('save_dir', data_dir)
+
+    if not os.path.exists(save_dir):
+        try:
+            print("Save directory not found!")
+            os.makedirs(save_dir)
+            # check if the directory has been created
+            if os.path.exists(save_dir):
+                print(f"Directory created: '{save_dir}'")
+            else:
+                print(f"Error: Unable to create directory '{save_dir}'")
+                sys.exit(1)
+        except OSError:
+            # if the directory cannot be created, raise an error
+            print(f"Error: Unable to create directory '{save_dir}'")
+            sys.exit(1)
+
+    # Get the time index with the best contrast
+    data_cube, mask, nt = load_crisp_fits_all_timesteps_mosaic(crisp_im)
+    best_frame, best_frame_index, contrasts = best_contrast_frame(data_cube, mask=mask)
+    # update the best_frame_index in config
+    config.setdefault('best_frame_index', best_frame_index)
+
+    # === Set the time range ===
+    # Check the input time_range is in the correct format
+    time_range_options = "[start_time_index, end_time_index], [start_time_index, end_time_index, step_size],\
+          'first', 'best, 'full'"
+    fits_info = get_fits_info(crisp_im[0], pprint=True)
+    time_range = config['time_range']
+
+    if time_range == 'best':
+        time_range = [best_frame_index]
+    elif time_range == 'first':
+        time_range = [0]
+    elif time_range == 'full':
+        time_range = list(range(nt))
+    elif isinstance(time_range, list):
+        if len(time_range) == 1:
+            time_range = time_range
+        if len(time_range) == 2:
+            if time_range[0] == time_range[1]:
+                time_range = [time_range[0]]
+            else:
+                time_range = list(range(time_range[0], time_range[1]))
+        elif len(time_range) == 3:
+            time_range = list(range(time_range[0], time_range[1], time_range[2]))
+    else:
+        print("Error: Invalid time_range format")
+        print(f"Available options: {time_range_options}")
+        sys.exit(1)
+
+    # Load FITS header to get xsize and ysize if not provided
+    fits_header = load_fits_header(crisp_im[0])
+    config.setdefault('xsize', fits_header['NAXIS1'])
+    config.setdefault('ysize', fits_header['NAXIS2'])
+
+    crop = config['crop']
+    check_crop = config['check_crop']
+    if crop and check_crop:
+        xorg, yorg, xsize, ysize = interactive_fov_selection(crisp_im, scale=1)
+    else:
+        xorg = config['xorg']
+        xsize = config['xsize']
+        yorg = config['yorg']
+        ysize = config['ysize']
+        rescale = config['rescale']
+
+    # Extract configuration values
+    scale = config['scale']
+    is_north_up = config['is_north_up']
+    flip_lr = config['flip_lr']
+    shape = config['shape']
+    verbose = config['verbose']
+    hmi_con_series = config['hmi_con_series']
+    hmi_mag_series = config['hmi_mag_series']
+    email = config['email']
+    plot_sst_pointings_flag = config['plot_sst_pointings_flag']
+    plot_hmi_ic_mag_flag = config['plot_hmi_ic_mag_flag']
+    plot_crisp_image_flag = config['plot_crisp_image_flag']
+    blos_min = config['blos_min']
+    blos_max = config['blos_max']
+
+    # === Check the inversion output parameters ===
+    inversion_save_fits_list = config['inversion_save_fits_list']
+    inversion_save_errors_fits = config['inversion_save_errors_fits']
+    inversion_save_lp_list = config['inversion_save_lp_list']
+    inversion_save_errors_lp = config['inversion_save_errors_lp']
+    delete_temp_files = config['delete_temp_files']
+
+    inversion_out_list = ["Bstr", "Binc", "Bazi", "Vlos", "Vdop",
+                          "etal", "damp", "S0", "S1", "Blos", "Bhor", "Nan_mask"]
+
+    # check if all the inversion_save_fits_list and inversion_save_lp_list are in the inversion_out_list
+    for item in inversion_save_fits_list:
+        if item not in inversion_out_list:
+            print(f"Error: {item} is not in the inversion_out_list")
+            print(f"Available items: {inversion_out_list}")
+            sys.exit(1)
+    for item in inversion_save_lp_list:
+        if item not in inversion_out_list:
+            print(f"Error: {item} is not in the inversion_out_list")
+            print(f"Available items: {inversion_out_list}")
+            sys.exit(1)
+    # if both inversion_save_fits_list and inversion_save_lp_list are empty, raise a warning but continue
+    if not inversion_save_fits_list and not inversion_save_lp_list:
+        print("Warning: Both inversion_save_fits_list and inversion_save_lp_list are empty.")
+        print("No inversion output will be saved.")
+
+    xrange = [xorg, xorg + xsize]
+    yrange = [yorg, yorg + ysize]
+
+    # Load the ambiguity resolution parameters
+    run_ambiguity_resolution = config['run_ambiguity_resolution']
+    ambig_executable_path = config['ambig_executable_path']
+    ambig_par = config['ambig_par']
+    ambig_input_dir = config.get('ambig_input_dir', save_dir)
+    ambig_time_range = config.get('ambig_time_range', time_range)
+    fbazi = config.get('fbazi', None)
+    fbhor = config.get('fbhor', None)
+    fblos = config.get('fblos', None)
+    rescale = config['rescale']
+    ambig_save_dir = config.get('ambig_save_dir', save_dir)
+    ambig_save_fits = config['ambig_save_fits']
+    ambig_save_lp = config['ambig_save_lp']
+    delete_ambig_temp_files = config['delete_ambig_temp_files']
+    ambig_verbose = config['ambig_verbose']
+
+    if ambig_time_range == 'best':
+        ambig_time_range = [best_frame_index]
+    elif ambig_time_range == 'first':
+        ambig_time_range = [0]
+    elif ambig_time_range == 'full':
+        ambig_time_range = list(range(nt))
+    elif isinstance(ambig_time_range, list):
+        if len(ambig_time_range) == 1:
+            ambig_time_range = ambig_time_range
+        if len(ambig_time_range) == 2:
+            if ambig_time_range[0] == ambig_time_range[1]:
+                ambig_time_range = [ambig_time_range[0]]
+            else:
+                ambig_time_range = list(range(ambig_time_range[0], ambig_time_range[1]))
+        elif len(ambig_time_range) == 3:
+            ambig_time_range = list(range(ambig_time_range[0], ambig_time_range[1], ambig_time_range[2]))
+    else:
+        print("Error: Invalid ambig_time_range format")
+        print(f"Available options: {time_range_options}")
+        sys.exit(1)
+
+    # Print the parameters to verify
+    if pprint:
+        print("\nInput Configuration Parameters:")
+        print("=" * 64)
+        print(f"Data directory: {data_dir}")
+        print(f"Save directory: {save_dir}")
+        print(f"CRISP image   : {crisp_im}")
+        print(f"Time range    : {time_range}")
+        print(f"Best frame    : {best_frame_index}")
+        print(f"Scale         : {scale}")
+        print(f"Is North Up   : {is_north_up}")
+        print(f"Flip LR       : {flip_lr}")
+        print(f"Shape         : {shape}")
+        print(f"Crop          : {crop}")
+        print(f"xorg          : {xorg}")
+        print(f"yorg          : {yorg}")
+        print(f"xsize         : {xsize}")
+        print(f"ysize         : {ysize}")
+        print(f"rescale       : {rescale}")
+        print(f"xrange        : {xrange}")
+        print(f"yrange        : {yrange}")
+        print(f"Email         : {email}")
+        print(f"Inversion Save FITS List: {inversion_save_fits_list}")
+        print(f"Inversion Save Errors FITS: {inversion_save_errors_fits}")
+        print(f"Inversion Save LP List: {inversion_save_lp_list}")
+        print(f"Inversion Save Errors LP: {inversion_save_errors_lp}")
+        print(f"Delete Temp Files: {delete_temp_files}")
+        if run_ambiguity_resolution:
+            print("\nAmbiguity Resolution Parameters:")
+            print(f"Ambiguity Resolution Executable Path: {ambig_executable_path}")
+            print(f"Ambiguity Resolution Parameter File : {ambig_par}")
+            print(f"Ambiguity Resolution Input Directory: {ambig_input_dir}")
+            print(f"Ambiguity Resolution Time Range      : {ambig_time_range}")
+            print(f"Bazi filename                       : {fbazi}")
+            print(f"Bhor filename                       : {fbhor}")
+            print(f"Blos filename                       : {fblos}")
+            print(f"rescale                             : {rescale}")
+            print(f"Ambiguity Resolution Save Directory : {ambig_save_dir}")
+            print(f"Ambiguity Resolution Save FITS      : {ambig_save_fits}")
+            print(f"Ambiguity Resolution Save LP        : {ambig_save_lp}")
+            print(f"Delete Ambiguity Resolution Temp Files: {delete_ambig_temp_files}")
+            print(f"Verbosity for Ambiguity Resolution  : {ambig_verbose}")
+
+    print("\n\nObservation Details:")
+    print("=" * 64)
+
+    t_obs = fits_info['avg_time_obs']
+    all_wavelengths = fits_info['all_wavelengths']
+    fov = fov_angle(t_obs)
+    print(f'FOV angle from turret log: {fov:.2f} deg')
+    if config['is_north_up']:
+        fov = 0
+        print('Data is North up. Setting fov_angle to 0 deg.')
+
+    wfa_blos_map = None
+    if show_plots:
+        # Plot the contrast as a function of the time index
+        plot_contrast(contrasts, figsize=(6, 3))
+        plot_image(best_frame, title=f'I (Frame: {best_frame_index})', cmap='gray', scale=scale, figsize=(6, 6),
+                   show_roi=True, xrange=xrange, yrange=yrange)
+        # Plot the stokes V of the best_frame
+        best_frame_v = load_crisp_fits_mosaic(crisp_im, index=best_frame_index)
+        wfa_blos_map = create_blos_map(best_frame_v, all_wavelengths, max_normalise=True, apply_mask=True)
+        plot_image(wfa_blos_map, title=f'Blos (Frame: {best_frame_index})', cmap='gray', scale=scale, figsize=(6, 6),
+                   show_roi=True, xrange=xrange, yrange=yrange)
+
+    # Confirm the parameters from the user
     if confirm:
         validate_input = input("Do you want to proceed with these parameters? (y/n): ")
         if validate_input.lower() != 'y':
