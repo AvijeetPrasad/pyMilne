@@ -1636,13 +1636,15 @@ def check_input_config_mosaic(config, confirm=True, pprint=True, show_plots=Fals
     crop = config['crop']
     check_crop = config['check_crop']
     if crop and check_crop:
-        xorg, yorg, xsize, ysize = interactive_fov_selection(crisp_im[0], scale=1)
-    else:
-        xorg = config['xorg']
-        xsize = config['xsize']
-        yorg = config['yorg']
-        ysize = config['ysize']
-        rescale = config['rescale']
+        # xorg, yorg, xsize, ysize = interactive_fov_selection(crisp_im[0], scale=1)
+        print("Cropping options is not available for mosaics. Using full FOV")
+        crop = False
+        check_crop = False
+    xorg = config['xorg']
+    xsize = config['xsize']
+    yorg = config['yorg']
+    ysize = config['ysize']
+    rescale = config['rescale']
 
     # Extract configuration values
     scale = config['scale']
