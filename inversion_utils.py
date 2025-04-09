@@ -1636,7 +1636,7 @@ def check_input_config_mosaic(config, confirm=True, pprint=True, show_plots=Fals
     crop = config['crop']
     check_crop = config['check_crop']
     if crop and check_crop:
-        xorg, yorg, xsize, ysize = interactive_fov_selection(crisp_im, scale=1)
+        xorg, yorg, xsize, ysize = interactive_fov_selection(crisp_im[0], scale=1)
     else:
         xorg = config['xorg']
         xsize = config['xsize']
