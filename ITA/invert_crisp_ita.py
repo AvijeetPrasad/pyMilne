@@ -13,6 +13,7 @@ import inversion_utils as iu
 import me_utils as meu
 import helita_io_lp as lp
 import hmi_plot as hp
+from astropy.io import fits
 print_pythonpath()
 
 # %%
@@ -105,6 +106,28 @@ else:
 # Load the fits header as a dictionary
 fits_header = iu.load_fits_header(crisp_im, out_dict=False)
 fits_header_dict = iu.load_fits_header(crisp_im, out_dict=True)
+
+# %%
+filename = crisp_im
+hdr = fits.getheader(filename)
+nx = hdr['NAXIS1']
+ny = hdr['NAXIS2']
+nw = hdr['NAXIS3']
+ns = hdr['NAXIS4']
+nt = hdr['NAXIS5']
+start_time_obs = hdr['DATE-BEG']  # '2020-08-07T08:22:14'
+end_time_obs = hdr['DATE-END']
+avg_time_obs = hdr['DATE-AVG']
+# Read WCS data
+wcs_data = fits.getdata(filename, extname='WCS-TAB')
+# Extract the relevant data
+coords = np.array(wcs_data['HPLN+HPLT+WAVE+TIME'])[0]
+# Extract the coordinates
+hpln = coords[..., 0]  # (nt, nw, 2, 2) # four corners of the FOV?
+hplt = coords[..., 1]
+wave = coords[..., 2]
+time = coords[..., 3]
+wave2 = np.mean(wave, axis=(1, 2)) * 10  # Convert to Angstroms (nt, nw)
 
 # %%
 if plot_sst_pointings_flag:
@@ -327,24 +350,24 @@ for var in inversion_save_list:
 
     if var in inversion_save_fits_list:
         # Save the full variable data
-        out_file_name = os.path.join(save_dir, f'{sav_var}_{cen_wav}_{obs_start_time}_\
-                                     {obs_end_time}_t_{time_index_range}.fits')
+        out_file_name = os.path.join(
+            save_dir, f'{sav_var}_{cen_wav}_{obs_start_time}_{obs_end_time}_t_{time_index_range}.fits')
         iu.save_fits(full_var_data, var_header, out_file_name, overwrite=True, verbose=verbose)
         if inversion_save_errors_fits and sav_var != 'Nan_mask':
-            err_out_file_name = os.path.join(save_dir, f'{sav_var}_err_{cen_wav}_{obs_start_time}_{
-                                             obs_end_time}_t_{time_index_range}.fits')
+            err_out_file_name = os.path.join(
+                save_dir, f'{sav_var}_err_{cen_wav}_{obs_start_time}_{obs_end_time}_t_{time_index_range}.fits')
             iu.save_fits(full_err_data, var_header, err_out_file_name, overwrite=True, verbose=verbose)
 
     if var in inversion_save_lp_list:
         # Save the inversion output in the LP format
-        lp_out_file_name = os.path.join(save_dir, f'{sav_var}_{cen_wav}_{obs_start_time}_{
-                                        obs_end_time}_t_{time_index_range}.fcube')
+        lp_out_file_name = os.path.join(
+            save_dir, f'{sav_var}_{cen_wav}_{obs_start_time}_{obs_end_time}_t_{time_index_range}.fcube')
         lp_data = np.float32(rearrange(full_var_data, 'nt nx ny -> nx ny nt'))
         lp.writeto(lp_out_file_name, lp_data, extraheader='', dtype=None, verbose=True, append=False)
 
         if inversion_save_errors_lp and sav_var != 'Nan_mask':
-            lp_err_out_file_name = os.path.join(save_dir, f'{sav_var}_err_{cen_wav}_{obs_start_time}_{
-                                                obs_end_time}_t_{time_index_range}.fcube')
+            lp_err_out_file_name = os.path.join(
+                save_dir, f'{sav_var}_err_{cen_wav}_{obs_start_time}_{obs_end_time}_t_{time_index_range}.fcube')
             lp_err_data = np.float32(rearrange(full_err_data, 'nt nx ny -> nx ny nt'))
             lp.writeto(lp_err_out_file_name, lp_err_data, extraheader='', dtype=None, verbose=True, append=False)
 
@@ -355,19 +378,24 @@ for var in inversion_save_list:
                 print(f'Deleting temporary file: {temp_file}')
             os.remove(temp_file)
 
+# %%
 
 print('=== Save the Run Config ===')
 # combine input_config and inversion_config dictionaries
 full_config = {**input_config, **inversion_config}
 
 # Save the input and inversion configuration as a separate file
-iu.save_yaml_config(full_config, 'full_config.yaml', save_dir=save_dir)
+iu.save_yaml_config(
+    full_config, f'full_config_{obs_start_time}_{obs_end_time}_t_{time_index_range}.yaml', save_dir=save_dir)
 # Save the fits information as a separate file
-iu.save_yaml_config(fits_info, 'fits_info.yaml', save_dir=save_dir, append_timestamp=False)
+iu.save_yaml_config(
+    fits_info, f'fits_info_{obs_start_time}_{obs_end_time}_t_{time_index_range}.yaml', save_dir=save_dir,
+    append_timestamp=False)
 
 # Save the fits header as a separate file
 
-iu.save_fits_header_as_text(fits_header_dict, 'fits_header.txt', save_dir=save_dir)
+iu.save_fits_header_as_text(
+    fits_header_dict, f'fits_header_{obs_start_time}_{obs_end_time}_t_{time_index_range}.txt', save_dir=save_dir)
 
 # %% [markdown]
 # ---
