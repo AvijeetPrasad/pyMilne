@@ -26,7 +26,7 @@ print("All libraries reloaded successfully\n")
 # Load the configuration from the JSON file
 input_config = iu.load_yaml_config('input_config.yaml')
 # Check the input configuration
-config = iu.check_input_config(input_config, pprint=True, confirm=False)
+config = iu.check_input_config_mosaic(input_config, pprint=True, confirm=False)
 
 # %%
 # # Extract the input parameters
@@ -68,53 +68,71 @@ delete_temp_files = config['delete_temp_files']
 inversion_save_list = list(set(inversion_save_fits_list + inversion_save_lp_list))
 wfa_blos_map = config['wfa_blos_map']
 
+# %%
+
 # Extract the fits information from the header for the best frame
 tt = best_frame_index
 fits_info = config['fits_info']
-nx = fits_info['nx']
-ny = fits_info['ny']
-nw = fits_info['nw']
-nt = fits_info['nt']
-mu = fits_info['mu']
-x1 = fits_info['hplnt'][tt][0]
-x2 = fits_info['hplnt'][tt][1]
-y1 = fits_info['hpltt'][tt][0]
-y2 = fits_info['hpltt'][tt][1]
-tobs = fits_info['all_start_times'][tt]
-tstart = fits_info['start_time_obs']
-tend = fits_info['end_time_obs']
-hplnt = fits_info['hplnt']
-hpltt = fits_info['hpltt']
-all_start_times = fits_info['all_start_times']
-central_wavelength = fits_info['central_wavelength']
+fits_info_tt = fits_info[tt]
+nx = fits_info_tt['nx']
+ny = fits_info_tt['ny']
+nw = fits_info_tt['nw']
+# nt = fits_info_tt['nt']
+mu = fits_info_tt['mu']
+x1 = fits_info_tt['hplnt'][tt][0]
+x2 = fits_info_tt['hplnt'][tt][1]
+y1 = fits_info_tt['hpltt'][tt][0]
+y2 = fits_info_tt['hpltt'][tt][1]
 
-# Reset the x and y ranges if cropping is enabled
-if crop:
-    x_list = np.linspace(x1, x2, num=nx)
-    y_list = np.linspace(y1, y2, num=ny)
-    x_list = x_list[xrange[0]:xrange[1]]
-    y_list = y_list[yrange[0]:yrange[1]]
-    x1 = x_list[0]
-    x2 = x_list[-1]
-    y1 = y_list[0]
-    y2 = y_list[-1]
-    nx = xsize
-    ny = ysize
-else:
-    print('No cropping is done\n')
-
-# Load the fits header as a dictionary
-fits_header = iu.load_fits_header(crisp_im, out_dict=False)
-fits_header_dict = iu.load_fits_header(crisp_im, out_dict=True)
+# Get the start times, hplnt, hpltt of all the frames and the number of frames
+all_start_times = [fits_info[i]['all_start_times'][0] for i in range(len(fits_info))]
+all_hplnt = [fits_info[i]['hplnt'][0] for i in range(len(fits_info))]
+all_hpltt = [fits_info[i]['hpltt'][0] for i in range(len(fits_info))]
+nt = len(all_start_times)
 
 # %%
-filename = crisp_im
+tobs = all_start_times[tt]
+tstart = fits_info_tt['start_time_obs']
+tend = fits_info_tt['end_time_obs']
+hplnt = fits_info_tt['hplnt']
+hpltt = fits_info_tt['hpltt']
+central_wavelength = fits_info_tt['central_wavelength']
+
+# # Reset the x and y ranges if cropping is enabled
+# if crop:
+#     x_list = np.linspace(x1, x2, num=nx)
+#     y_list = np.linspace(y1, y2, num=ny)
+#     x_list = x_list[xrange[0]:xrange[1]]
+#     y_list = y_list[yrange[0]:yrange[1]]
+#     x1 = x_list[0]
+#     x2 = x_list[-1]
+#     y1 = y_list[0]
+#     y2 = y_list[-1]
+#     nx = xsize
+#     ny = ysize
+# else:
+#     print('No cropping is done\n')
+
+# Load the fits header as a dictionary
+fits_header = iu.load_fits_header(crisp_im[tt], out_dict=False)
+fits_header_dict = iu.load_fits_header(crisp_im[tt], out_dict=True)
+
+# %%
+
+# Create a list of header dictionaries for all files in crisp_im
+all_fits_header_dict = []
+for tt_idx in range(len(crisp_im)):
+    header_dict = iu.load_fits_header(crisp_im[tt_idx], out_dict=True)
+    all_fits_header_dict.append(header_dict)
+
+# %%
+filename = crisp_im[tt]
 hdr = fits.getheader(filename)
 nx = hdr['NAXIS1']
 ny = hdr['NAXIS2']
 nw = hdr['NAXIS3']
 ns = hdr['NAXIS4']
-nt = hdr['NAXIS5']
+# nt = hdr['NAXIS5']
 start_time_obs = hdr['DATE-BEG']  # '2020-08-07T08:22:14'
 end_time_obs = hdr['DATE-END']
 avg_time_obs = hdr['DATE-AVG']
@@ -141,11 +159,12 @@ if plot_hmi_ic_mag_flag:
 # %%
 if plot_crisp_image_flag:
     print('SST CRISP image with North up:', not (is_north_up))
-    iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=0, ww=0, figsize=(12, 12), fontsize=10, rot_fov=fov_angle,
+    iu.plot_crisp_image(crisp_im[best_frame_index], tt=0, ss=0, ww=0, figsize=(12, 12), fontsize=10, rot_fov=fov_angle,
                         rot_to_north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange,
                         xtick_range=[x1, x2], ytick_range=[y1, y2], vmin=0.2, flip_lr=flip_lr)
 
-    iu.plot_crisp_image(crisp_im, tt=best_frame_index, ss=3, ww=nw // 4, figsize=(8, 8), fontsize=10, rot_fov=fov_angle,
+    iu.plot_crisp_image(crisp_im[best_frame_index], tt=0, ss=3, ww=nw // 4, figsize=(8, 8), fontsize=10,
+                        rot_fov=fov_angle,
                         rot_to_north_up=not (is_north_up), crop=crop, xrange=xrange, yrange=yrange,
                         xtick_range=[x1, x2], ytick_range=[y1, y2], vmin=-0.2, flip_lr=flip_lr)
 
@@ -191,7 +210,7 @@ for tt in time_range:
     count += 1
 
     # Load the CRISP image for a given time step
-    ll = meu.load_crisp_frame(crisp_im, tt, crop=crop, xrange=xrange, yrange=yrange)
+    ll = meu.load_crisp_frame(crisp_im[tt], 0, crop=crop, xrange=xrange, yrange=yrange)
 
     # Setup the inversion parameters for the ME inversion
     obs, sig, l0, me = meu.init_me_config(ll, sigma_strength, sigma_list, erh=erh, dtype=dtype, nthreads=nthreads)
@@ -323,6 +342,8 @@ for tt in time_range:
 time_index_range = f"{time_range[0]}-{time_range[-1]}"
 obs_start_time = all_start_times[time_range[0]].replace(':', '').replace(' ', '_T')
 obs_end_time = all_start_times[time_range[-1]].replace(':', '').replace(' ', '_T')
+
+# %%
 for var in inversion_save_list:
     var_index = inversion_out_list.index(var)
     sav_var = inversion_out_list[var_index]
@@ -396,6 +417,26 @@ iu.save_yaml_config(
 
 iu.save_fits_header_as_text(
     fits_header_dict, f'fits_header_{obs_start_time}_{obs_end_time}_t_{time_index_range}.txt', save_dir=save_dir)
+
+# %%
+# Save all fits headers to a single text file with clear separation between different indices
+outfile = os.path.join(save_dir, f'all_fits_header_{obs_start_time}_{obs_end_time}_t_{time_index_range}.txt')
+with open(outfile, 'w') as f:
+    for idx, header_dict in enumerate(all_fits_header_dict):
+        f.write(f"===== FITS HEADER INDEX {idx} =====\n")
+        for key, value in header_dict.items():
+            f.write(f'{key}: {value}\n')
+        f.write("\n" + "="*50 + "\n\n")
+print(f'all_fits_header.txt saved to: {outfile}')
+
+
+# %%
+# save all_start_times, all_hplnt, all_hpltt
+np.save(os.path.join(
+    save_dir, f'all_start_times_{obs_start_time}_{obs_end_time}_t_{time_index_range}.npy'), all_start_times)
+np.save(os.path.join(save_dir, f'all_hplnt_{obs_start_time}_{obs_end_time}_t_{time_index_range}.npy'), all_hplnt)
+np.save(os.path.join(save_dir, f'all_hpltt_{obs_start_time}_{obs_end_time}_t_{time_index_range}.npy'), all_hpltt)
+
 
 # %% [markdown]
 # ---
